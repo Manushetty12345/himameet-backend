@@ -13,7 +13,7 @@ module.exports = (server) => {
   });
 
   // Try to connect to Redis for scaling (fallback to memory if it fails)
-  const pubClient = createClient({ url: 'redis://localhost:6379' });
+  const pubClient = createClient({ url: process.env.REDIS_URL || 'redis://localhost:6379' });
   const subClient = pubClient.duplicate();
 
   Promise.all([pubClient.connect(), subClient.connect()]).then(() => {

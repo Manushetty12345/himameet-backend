@@ -1,5 +1,5 @@
--- ============================================================
--- HI MA APP — FULL DATABASE SCHEMA
+﻿-- ============================================================
+-- HI MA APP â€” FULL DATABASE SCHEMA
 -- Generated step by step based on app screens
 -- Database: PostgreSQL
 -- ============================================================
@@ -81,7 +81,7 @@ CREATE TABLE avatars (
 CREATE TABLE languages (
     id              INT AUTO_INCREMENT PRIMARY KEY,
     name_english    VARCHAR(30) NOT NULL,                     -- 'Kannada'
-    name_native     VARCHAR(30) NOT NULL,                     -- 'ಕನ್ನಡ'
+    name_native     VARCHAR(30) NOT NULL,                     -- 'à²•à²¨à³à²¨à²¡'
     language_code   VARCHAR(5) NOT NULL UNIQUE,                -- 'kn','ta','te'
     is_active       BOOLEAN NOT NULL DEFAULT TRUE,
     display_order   INT DEFAULT 0
@@ -443,3 +443,4 @@ CREATE TABLE withdrawal_requests (
 
 CREATE INDEX idx_withdrawals_user ON withdrawal_requests(user_id);
 CREATE INDEX idx_withdrawals_status ON withdrawal_requests(status);
+
