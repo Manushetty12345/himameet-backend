@@ -11,7 +11,7 @@ const PHONEPE_MERCHANT_ID = process.env.PHONEPE_MERCHANT_ID || 'M123456789';
  */
 exports.getPackages = async (req, res) => {
   try {
-    const [rows] = await pool.query(`SELECT id, coins, price AS price_inr, discount_percent AS discount_percentage, is_welcome_offer FROM coin_packages WHERE is_active = 1`);
+    const [rows] = await pool.query(`SELECT id, coins, price AS price_inr, discount_percent AS discount_percentage, is_welcome_offer FROM coin_packages WHERE is_active = true`);
     
     res.status(200).json({
       status: 'success',
@@ -36,18 +36,15 @@ exports.initiateRecharge = async (req, res) => {
       return res.status(400).json({ status: 'error', message: 'package_id is required' });
     }
 
-    // 1. Get package details
-    const [pkgRows] = await connection.query(`SELECT price, coins FROM coin_packages WHERE id = ?`, [package_id]);
+    const [pkgRows] = await connection.query(`SELECT price, coins FROM coin_packages WHERE id = $1`, [package_id]);
     if (pkgRows.length === 0) {
       return res.status(404).json({ status: 'error', message: 'Package not found' });
     }
     const pkg = pkgRows[0];
     const amountInPaise = Math.round(pkg.price * 100);
 
-    // 2. Generate unique Transaction ID
     const merchantTransactionId = 'TXN_' + uuidv4().replace(/-/g, '').substring(0, 15).toUpperCase();
 
-    // 3. Create PhonePe Payload
     const payload = {
       merchantId: PHONEPE_MERCHANT_ID,
       merchantTransactionId: merchantTransactionId,
@@ -55,22 +52,17 @@ exports.initiateRecharge = async (req, res) => {
       amount: amountInPaise,
       redirectUrl: 'himaapp://payment/success',
       redirectMode: 'REDIRECT',
-      callbackUrl: 'http://localhost:5000/api/wallet/recharge/webhook',
+      callbackUrl: `${process.env.APP_BASE_URL || 'http://localhost:5000'}/api/wallet/recharge/webhook`,
       paymentInstrument: { type: 'PAY_PAGE' }
     };
 
-    // 4. Encode Payload to Base64
     const base64Payload = Buffer.from(JSON.stringify(payload)).toString('base64');
-
-    // 5. Generate Checksum (X-VERIFY)
-    // Formula: sha256(base64Payload + "/pg/v1/pay" + saltKey) + "###" + saltIndex
     const stringToHash = base64Payload + '/pg/v1/pay' + PHONEPE_SALT_KEY;
     const sha256Hash = crypto.createHash('sha256').update(stringToHash).digest('hex');
     const checksum = sha256Hash + '###' + PHONEPE_SALT_INDEX;
 
-    // 6. Save PENDING order to DB
     await connection.query(
-      `INSERT INTO recharge_orders (id, user_id, package_id, amount, coins, status) VALUES (?, ?, ?, ?, ?, 'PENDING')`,
+      `INSERT INTO recharge_orders (id, user_id, package_id, amount, coins, status) VALUES ($1, $2, $3, $4, $5, 'PENDING')`,
       [merchantTransactionId, userId, package_id, pkg.price, pkg.coins]
     );
 
@@ -104,18 +96,17 @@ exports.phonepeWebhook = async (req, res) => {
       return res.status(400).send('Invalid request');
     }
 
-    // Decode the response
     const decodedStr = Buffer.from(response, 'base64').toString('utf8');
     const responseData = JSON.parse(decodedStr);
 
     const merchantTransactionId = responseData.data.merchantTransactionId;
-    const paymentStatus = responseData.code; // 'PAYMENT_SUCCESS' or 'PAYMENT_ERROR'
+    const paymentStatus = responseData.code;
     const phonepeTxnId = responseData.data.transactionId;
 
     await connection.beginTransaction();
 
-    // Find the pending order
-    const [orders] = await connection.query(`SELECT * FROM recharge_orders WHERE id = ? FOR UPDATE`, [merchantTransactionId]);
+    // PostgreSQL uses SELECT ... FOR UPDATE
+    const [orders] = await connection.query(`SELECT * FROM recharge_orders WHERE id = $1 FOR UPDATE`, [merchantTransactionId]);
     
     if (orders.length === 0) {
       await connection.rollback();
@@ -123,31 +114,27 @@ exports.phonepeWebhook = async (req, res) => {
     }
     const order = orders[0];
 
-    // If already processed, ignore
     if (order.status !== 'PENDING') {
       await connection.rollback();
       return res.status(200).send('Already processed');
     }
 
     if (paymentStatus === 'PAYMENT_SUCCESS') {
-      // 1. Update order status
-      await connection.query(`UPDATE recharge_orders SET status = 'SUCCESS' WHERE id = ?`, [merchantTransactionId]);
+      await connection.query(`UPDATE recharge_orders SET status = 'SUCCESS' WHERE id = $1`, [merchantTransactionId]);
 
-      // 2. Add to coin_transactions
       await connection.query(
-        `INSERT INTO coin_transactions (user_id, type, coins, amount_paid, payment_id) VALUES (?, 'purchase', ?, ?, ?)`,
+        `INSERT INTO coin_transactions (user_id, type, coins, amount_paid, payment_id) VALUES ($1, 'purchase', $2, $3, $4)`,
         [order.user_id, order.coins, order.amount, phonepeTxnId]
       );
 
-      // 3. Update or create wallet balance
+      // PostgreSQL uses ON CONFLICT instead of ON DUPLICATE KEY UPDATE
       await connection.query(
-        `INSERT INTO wallets (user_id, coin_balance) VALUES (?, ?) 
-         ON DUPLICATE KEY UPDATE coin_balance = coin_balance + ?`,
+        `INSERT INTO wallets (user_id, coin_balance) VALUES ($1, $2) 
+         ON CONFLICT (user_id) DO UPDATE SET coin_balance = wallets.coin_balance + $3`,
         [order.user_id, order.coins, order.coins]
       );
     } else {
-      // Payment Failed
-      await connection.query(`UPDATE recharge_orders SET status = 'FAILED' WHERE id = ?`, [merchantTransactionId]);
+      await connection.query(`UPDATE recharge_orders SET status = 'FAILED' WHERE id = $1`, [merchantTransactionId]);
     }
 
     await connection.commit();
@@ -168,7 +155,7 @@ exports.checkPaymentStatus = async (req, res) => {
   try {
     const { transaction_id } = req.params;
 
-    const [rows] = await pool.query(`SELECT status, coins FROM recharge_orders WHERE id = ? AND user_id = ?`, [transaction_id, req.user.id]);
+    const [rows] = await pool.query(`SELECT status, coins FROM recharge_orders WHERE id = $1 AND user_id = $2`, [transaction_id, req.user.id]);
 
     if (rows.length === 0) {
       return res.status(404).json({ status: 'error', message: 'Transaction not found' });
@@ -193,8 +180,6 @@ exports.checkPaymentStatus = async (req, res) => {
  */
 exports.phonepeRedirect = async (req, res) => {
   try {
-    // PhonePe redirects back to this URL after the payment gateway.
-    // If we're using a mobile app, we just redirect them back into the app using a Deep Link!
     const transactionId = req.body.transactionId || req.query.transactionId;
     const status = req.body.code || req.query.code;
 

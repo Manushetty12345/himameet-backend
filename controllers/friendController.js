@@ -12,20 +12,20 @@ exports.sendRequest = async (req, res) => {
       return res.status(400).json({ status: 'error', message: 'target_user_id is required' });
     }
 
-    // Check if already friends
     const [friendRows] = await pool.query(`
       SELECT id FROM friendships 
-      WHERE (user_one_id = ? AND user_two_id = ?) OR (user_one_id = ? AND user_two_id = ?)
+      WHERE (user_one_id = $1 AND user_two_id = $2) OR (user_one_id = $3 AND user_two_id = $4)
     `, [senderId, target_user_id, target_user_id, senderId]);
 
     if (friendRows.length > 0) {
       return res.status(400).json({ status: 'error', message: 'Already friends' });
     }
 
-    // Insert request
+    // PostgreSQL uses ON CONFLICT DO NOTHING instead of INSERT IGNORE
     await pool.query(`
-      INSERT IGNORE INTO friend_requests (sender_id, receiver_id) 
-      VALUES (?, ?)
+      INSERT INTO friend_requests (sender_id, receiver_id) 
+      VALUES ($1, $2)
+      ON CONFLICT (sender_id, receiver_id) DO NOTHING
     `, [senderId, target_user_id]);
 
     res.status(200).json({
@@ -52,9 +52,9 @@ exports.getFriends = async (req, res) => {
         a.avatar_url,
         'friend' AS status
       FROM friendships f
-      JOIN users u ON (u.id = f.user_one_id OR u.id = f.user_two_id) AND u.id != ?
+      JOIN users u ON (u.id = f.user_one_id OR u.id = f.user_two_id) AND u.id != $1
       LEFT JOIN avatars a ON u.avatar_id = a.id
-      WHERE f.user_one_id = ? OR f.user_two_id = ?
+      WHERE f.user_one_id = $2 OR f.user_two_id = $3
     `, [userId, userId, userId]);
 
     const formattedData = rows.map(row => ({
@@ -82,10 +82,10 @@ exports.toggleFavourite = async (req, res) => {
     const { is_favourite } = req.body;
 
     if (is_favourite) {
-      await pool.query(`INSERT IGNORE INTO favourite_friends (user_id, friend_id) VALUES (?, ?)`, [userId, friendId]);
+      await pool.query(`INSERT INTO favourite_friends (user_id, friend_id) VALUES ($1, $2) ON CONFLICT (user_id, friend_id) DO NOTHING`, [userId, friendId]);
       res.status(200).json({ status: 'success', message: 'Added to favourites.' });
     } else {
-      await pool.query(`DELETE FROM favourite_friends WHERE user_id = ? AND friend_id = ?`, [userId, friendId]);
+      await pool.query(`DELETE FROM favourite_friends WHERE user_id = $1 AND friend_id = $2`, [userId, friendId]);
       res.status(200).json({ status: 'success', message: 'Removed from favourites.' });
     }
   } catch (error) {

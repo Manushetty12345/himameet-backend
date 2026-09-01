@@ -5,10 +5,14 @@ const pool = require('../db');
  */
 exports.getCreators = async (req, res) => {
   try {
-    const filter = req.query.filter; // e.g. 'music', 'love'
+    const filter = req.query.filter;
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 20;
     const offset = (page - 1) * limit;
+
+    const queryParams = [];
+    let paramIndex = 1;
+    let whereClauses = [`u.user_role = 'creator'`];
 
     let query = `
       SELECT 
@@ -24,44 +28,35 @@ exports.getCreators = async (req, res) => {
       LEFT JOIN avatars a ON u.avatar_id = a.id
       LEFT JOIN creator_settings cs ON u.id = cs.user_id
     `;
-    
-    const queryParams = [];
-    let whereClauses = [`u.user_role = 'creator'`];
 
-    // If filter is provided, join with tags
     if (filter) {
       query += `
         INNER JOIN user_tags ut ON u.id = ut.user_id
         INNER JOIN tags t ON ut.tag_id = t.id
       `;
-      whereClauses.push(`t.name = ?`);
+      whereClauses.push(`t.name = $${paramIndex++}`);
       queryParams.push(filter);
     }
 
-    if (whereClauses.length > 0) {
-      query += ` WHERE ` + whereClauses.join(' AND ');
-    }
-
-    // Group by to avoid duplicates if multiple tags match, though strictly speaking 1 tag filter shouldn't duplicate
-    query += ` GROUP BY u.id ORDER BY u.is_online DESC, u.created_at DESC LIMIT ? OFFSET ?`;
+    query += ` WHERE ` + whereClauses.join(' AND ');
+    query += ` GROUP BY u.id, a.avatar_url, cs.voice_rate_per_min, cs.video_rate_per_min, cs.is_available ORDER BY u.is_online DESC, u.created_at DESC LIMIT $${paramIndex++} OFFSET $${paramIndex++}`;
     queryParams.push(limit, offset);
 
     const [rows] = await pool.query(query, queryParams);
 
-    // Format response to match API Spec
     const formattedData = rows.map(row => ({
       creator_id: row.creator_id,
       name: row.name,
       avatar_url: row.avatar_url || 'https://hima-bucket.s3.amazonaws.com/default-female.png',
-      is_online: row.is_online === 1,
-      is_new: row.is_new === 1,
+      is_online: row.is_online === true,
+      is_new: row.is_new === true,
       voice: {
         rate_per_min: parseFloat(row.voice_rate),
-        status: row.is_available === 1 && row.is_online === 1 ? 'available' : 'offline'
+        status: row.is_available === true && row.is_online === true ? 'available' : 'offline'
       },
       video: {
         rate_per_min: parseFloat(row.video_rate),
-        status: row.is_available === 1 && row.is_online === 1 ? 'available' : 'offline'
+        status: row.is_available === true && row.is_online === true ? 'available' : 'offline'
       }
     }));
 
@@ -80,17 +75,17 @@ exports.getCreators = async (req, res) => {
  */
 exports.randomMatch = async (req, res) => {
   try {
-    const { call_type } = req.body; // 'voice' or 'video'
+    const { call_type } = req.body;
 
-    // Find a random online creator who is available
+    // PostgreSQL uses RANDOM() instead of RAND()
     const [rows] = await pool.query(`
       SELECT u.id AS matched_creator_id
       FROM users u
       LEFT JOIN creator_settings cs ON u.id = cs.user_id
       WHERE u.user_role = 'creator' 
-        AND u.is_online = 1 
-        AND (cs.is_available = 1 OR cs.is_available IS NULL)
-      ORDER BY RAND()
+        AND u.is_online = true 
+        AND (cs.is_available = true OR cs.is_available IS NULL)
+      ORDER BY RANDOM()
       LIMIT 1
     `);
 

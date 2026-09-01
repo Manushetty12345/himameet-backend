@@ -8,9 +8,7 @@ exports.clearChat = async (req, res) => {
     const chatId = req.params.chat_id;
     const userId = req.user.id;
 
-    // Soft delete by marking messages as deleted (or a mapping table for per-user delete)
-    // For simplicity based on schema:
-    await pool.query(`UPDATE messages SET is_deleted = 1 WHERE conversation_id = ?`, [chatId]);
+    await pool.query(`UPDATE messages SET is_deleted = true WHERE conversation_id = $1`, [chatId]);
 
     res.status(200).json({
       status: 'success',
@@ -40,9 +38,9 @@ exports.getMessages = async (req, res) => {
         message_type,
         created_at AS timestamp
       FROM messages
-      WHERE conversation_id = ? AND is_deleted = 0
+      WHERE conversation_id = $1 AND is_deleted = false
       ORDER BY created_at DESC
-      LIMIT ? OFFSET ?
+      LIMIT $2 OFFSET $3
     `, [chatId, limit, offset]);
 
     res.status(200).json({

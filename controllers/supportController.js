@@ -13,14 +13,14 @@ exports.createTicket = async (req, res) => {
     }
 
     const [result] = await pool.query(
-      `INSERT INTO support_tickets (user_id, subject, description, status) VALUES (?, ?, ?, 'active')`, 
+      `INSERT INTO support_tickets (user_id, subject, description, status) VALUES ($1, $2, $3, 'active') RETURNING id`, 
       [userId, subject, description]
     );
 
     res.status(200).json({
       status: 'success',
       message: 'Support ticket created successfully',
-      data: { ticket_id: result.insertId }
+      data: { ticket_id: result[0].id }
     });
   } catch (error) {
     console.error('Error creating ticket:', error);
@@ -36,11 +36,12 @@ exports.getTickets = async (req, res) => {
     const userId = req.user.id;
     const statusFilter = req.query.status;
 
-    let query = `SELECT id AS ticket_id, subject, status, created_at FROM support_tickets WHERE user_id = ?`;
+    let query = `SELECT id AS ticket_id, subject, status, created_at FROM support_tickets WHERE user_id = $1`;
     const params = [userId];
+    let paramIndex = 2;
 
     if (statusFilter) {
-      query += ` AND status = ?`;
+      query += ` AND status = $${paramIndex++}`;
       params.push(statusFilter);
     }
 

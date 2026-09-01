@@ -2,7 +2,6 @@ const pool = require('../db');
 const jwt = require('jsonwebtoken');
 const { v4: uuidv4 } = require('uuid');
 const msg91 = require('../utils/msg91');
-const crypto = require('crypto');
 
 const JWT_SECRET = process.env.JWT_SECRET;
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '30d';
@@ -57,7 +56,7 @@ exports.verifyOtp = async (req, res) => {
     }
 
     // 2. Check if user exists in DB
-    const [rows] = await pool.query(`SELECT * FROM users WHERE phone_number = ?`, [mobile_number]);
+    const [rows] = await pool.query(`SELECT * FROM users WHERE phone_number = $1`, [mobile_number]);
 
     if (rows.length > 0) {
       // Existing User
@@ -113,28 +112,21 @@ exports.truecallerLogin = async (req, res) => {
       return res.status(400).json({ status: 'error', message: 'Missing Truecaller payload or signature' });
     }
 
-    // Decode the base64 payload to get user details
     const decodedPayload = Buffer.from(payload, 'base64').toString('utf8');
     const parsedPayload = JSON.parse(decodedPayload);
     
-    // Note: In production you'd fetch Truecaller's public keys from https://api4.truecaller.com/v1/key 
-    // and verify the signature here.
-    
-    // Extract phone number from Truecaller payload
     let mobile_number = parsedPayload.phoneNumber;
     
     if (!mobile_number) {
       return res.status(400).json({ status: 'error', message: 'Invalid Truecaller payload' });
     }
 
-    // Separate country code (assuming +91 for now as per schema logic)
     let country_code = '+91';
     if (mobile_number.startsWith('+91')) {
       mobile_number = mobile_number.replace('+91', '');
     }
 
-    // DB Logic (Same as Verify OTP)
-    const [rows] = await pool.query(`SELECT * FROM users WHERE phone_number = ?`, [mobile_number]);
+    const [rows] = await pool.query(`SELECT * FROM users WHERE phone_number = $1`, [mobile_number]);
 
     if (rows.length > 0) {
       const user = rows[0];
@@ -155,7 +147,6 @@ exports.truecallerLogin = async (req, res) => {
         }
       });
     } else {
-      // New User
       const tempToken = jwt.sign({ temp_phone: mobile_number, temp_country_code: country_code }, JWT_SECRET, { expiresIn: '1h' });
 
       return res.status(200).json({
@@ -182,11 +173,11 @@ exports.logout = async (req, res) => {
     const deviceId = req.body.device_id;
 
     if (userId && deviceId) {
-      await pool.query(`DELETE FROM notification_tokens WHERE user_id = ? AND device_id = ?`, [userId, deviceId]);
-      await pool.query(`DELETE FROM user_sessions WHERE user_id = ? AND device_id = ?`, [userId, deviceId]);
+      await pool.query(`DELETE FROM notification_tokens WHERE user_id = $1 AND device_id = $2`, [userId, deviceId]);
+      await pool.query(`DELETE FROM user_sessions WHERE user_id = $1 AND device_id = $2`, [userId, deviceId]);
     } else if (userId) {
-       await pool.query(`DELETE FROM notification_tokens WHERE user_id = ?`, [userId]);
-       await pool.query(`DELETE FROM user_sessions WHERE user_id = ?`, [userId]);
+       await pool.query(`DELETE FROM notification_tokens WHERE user_id = $1`, [userId]);
+       await pool.query(`DELETE FROM user_sessions WHERE user_id = $1`, [userId]);
     }
 
     res.status(200).json({

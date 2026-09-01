@@ -10,10 +10,9 @@ const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '30d';
  */
 exports.getAvatars = async (req, res) => {
   try {
-    const gender = req.query.gender || 'male'; // 'male' or 'female'
+    const gender = req.query.gender || 'male';
 
-    // If avatars table is empty, we just return a fake default one so frontend doesn't break
-    const [rows] = await pool.query(`SELECT id, avatar_url, gender FROM avatars WHERE gender = ?`, [gender]);
+    const [rows] = await pool.query(`SELECT id, avatar_url, gender FROM avatars WHERE gender = $1`, [gender]);
 
     let data = rows;
     if (data.length === 0) {
@@ -35,7 +34,7 @@ exports.getAvatars = async (req, res) => {
  */
 exports.getLanguages = async (req, res) => {
   try {
-    const [rows] = await pool.query(`SELECT id, name_english, language_code FROM languages WHERE is_active = 1`);
+    const [rows] = await pool.query(`SELECT id, name_english, language_code FROM languages WHERE is_active = true`);
 
     let data = rows;
     if (data.length === 0) {
@@ -57,7 +56,6 @@ exports.getLanguages = async (req, res) => {
  */
 exports.saveProfileSetup = async (req, res) => {
   try {
-    // The authMiddleware decoded the temp_token and put it in req.user
     const { temp_phone, temp_country_code } = req.user;
     const { gender, avatar_id, language_id } = req.body;
 
@@ -69,33 +67,25 @@ exports.saveProfileSetup = async (req, res) => {
       return res.status(400).json({ status: 'error', message: 'Missing required profile fields' });
     }
 
-    // Usually we would fetch the avatar_url from the DB based on avatar_id.
-    // For now, we will simulate it.
-    const [avatarRows] = await pool.query(`SELECT avatar_url FROM avatars WHERE id = ?`, [avatar_id]);
+    const [avatarRows] = await pool.query(`SELECT avatar_url FROM avatars WHERE id = $1`, [avatar_id]);
     let avatar_url = avatarRows.length > 0 ? avatarRows[0].avatar_url : 'https://hima-bucket.s3.amazonaws.com/default-avatar.png';
 
-    // Check if user already exists (just in case they double-click)
-    const [existing] = await pool.query(`SELECT * FROM users WHERE phone_number = ?`, [temp_phone]);
+    const [existing] = await pool.query(`SELECT * FROM users WHERE phone_number = $1`, [temp_phone]);
     if (existing.length > 0) {
       return res.status(400).json({ status: 'error', message: 'User already completed profile' });
     }
 
-    // Insert into DB
     const referral_code = 'HIMA' + uuidv4().split('-')[0].toUpperCase();
-    
-    // Default names based on phone to fulfill NOT NULL if there was any, 
-    // but full_name is optional in the schema. We will put a generic name for now.
     const fullName = 'User ' + temp_phone.slice(-4);
 
     const [result] = await pool.query(
       `INSERT INTO users (phone_number, country_code, full_name, user_role, gender, avatar_id, language_id, referral_code, is_verified) 
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id`,
       [temp_phone, temp_country_code || '+91', fullName, 'male', gender, avatar_id, language_id, referral_code, true]
     );
 
-    const newUserId = result.insertId;
+    const newUserId = result[0].id;
 
-    // Issue permanent token
     const token = jwt.sign({ id: newUserId, role: 'male' }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
 
     res.status(200).json({

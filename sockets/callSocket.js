@@ -19,7 +19,7 @@ module.exports = (io) => {
         io.to(`call_${callId}`).emit('call_started', { message: 'Call is now active. Billing started.' });
         
         // Update DB status to ongoing
-        await pool.query(`UPDATE call_logs SET status = 'ongoing', started_at = NOW() WHERE id = ?`, [callId]);
+        await pool.query(`UPDATE call_logs SET status = 'ongoing', started_at = NOW() WHERE id = $1`, [callId]);
         
         startCallBillingTimer(callId, io);
       }
@@ -32,7 +32,7 @@ module.exports = (io) => {
       stopCallBillingTimer(callId);
       
       // Update DB
-      await pool.query(`UPDATE call_logs SET status = 'completed', ended_at = NOW() WHERE id = ? AND status != 'completed'`, [callId]);
+      await pool.query(`UPDATE call_logs SET status = 'completed', ended_at = NOW() WHERE id = $1 AND status != 'completed'`, [callId]);
       
       io.to(`call_${callId}`).emit('call_ended', { message: 'The other user hung up.' });
     });
@@ -51,7 +51,7 @@ function startCallBillingTimer(callId, io) {
     try {
       tick++;
       // Fetch call details
-      const [callRows] = await pool.query(`SELECT caller_id, receiver_id, rate_per_min FROM call_logs WHERE id = ?`, [callId]);
+      const [callRows] = await pool.query(`SELECT caller_id, receiver_id, rate_per_min FROM call_logs WHERE id = $1`, [callId]);
       if (callRows.length === 0) return stopCallBillingTimer(callId);
       
       const { caller_id, receiver_id, rate_per_min } = callRows[0];
@@ -59,35 +59,35 @@ function startCallBillingTimer(callId, io) {
 
       // Deduct from caller
       const [updateRes] = await pool.query(
-        `UPDATE wallets SET coin_balance = coin_balance - ? WHERE user_id = ? AND coin_balance >= ?`, 
+        `UPDATE wallets SET coin_balance = coin_balance - $1 WHERE user_id = $2 AND coin_balance >= $3 RETURNING id`, 
         [rate, caller_id, rate]
       );
 
-      if (updateRes.affectedRows === 0) {
+      if (updateRes.length === 0) {
         // Insufficient Coins! Force end call.
         stopCallBillingTimer(callId);
-        await pool.query(`UPDATE call_logs SET status = 'completed', end_reason = 'insufficient_coins', ended_at = NOW() WHERE id = ?`, [callId]);
+        await pool.query(`UPDATE call_logs SET status = 'completed', end_reason = 'insufficient_coins', ended_at = NOW() WHERE id = $1`, [callId]);
         io.to(`call_${callId}`).emit('insufficient_coins', { message: 'Caller ran out of coins. Call ended.' });
         io.in(`call_${callId}`).socketsLeave(`call_${callId}`);
         return;
       }
 
       // Add to receiver
-      await pool.query(`UPDATE wallets SET coin_balance = coin_balance + ? WHERE user_id = ?`, [rate, receiver_id]);
+      await pool.query(`UPDATE wallets SET coin_balance = coin_balance + $1 WHERE user_id = $2`, [rate, receiver_id]);
 
       // Record the tick
-      await pool.query(`INSERT INTO call_billing_ticks (call_id, tick_number, coins_deducted) VALUES (?, ?, ?)`, [callId, tick, rate]);
+      await pool.query(`INSERT INTO call_billing_ticks (call_id, tick_number, coins_deducted) VALUES ($1, $2, $3)`, [callId, tick, rate]);
       
       // Update total coins charged and duration in call_logs
       await pool.query(`
         UPDATE call_logs 
-        SET coins_charged = coins_charged + ?, duration_seconds = duration_seconds + 60 
-        WHERE id = ?
+        SET coins_charged = coins_charged + $1, duration_seconds = duration_seconds + 60 
+        WHERE id = $2
       `, [rate, callId]);
 
       // Log transactions
-      await pool.query(`INSERT INTO coin_transactions (user_id, type, coins) VALUES (?, 'call_spend', -?)`, [caller_id, rate]);
-      await pool.query(`INSERT INTO coin_transactions (user_id, type, coins) VALUES (?, 'call_earn', ?)`, [receiver_id, rate]);
+      await pool.query(`INSERT INTO coin_transactions (user_id, type, coins) VALUES ($1, 'call_spend', $2)`, [caller_id, -rate]);
+      await pool.query(`INSERT INTO coin_transactions (user_id, type, coins) VALUES ($1, 'call_earn', $2)`, [receiver_id, rate]);
 
       console.log(`Billed ${rate} coins for call ${callId} (Tick ${tick})`);
 

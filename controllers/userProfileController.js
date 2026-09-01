@@ -15,10 +15,10 @@ exports.getMyProfile = async (req, res) => {
         u.dnd_enabled
       FROM users u
       LEFT JOIN avatars a ON u.avatar_id = a.id
-      WHERE u.id = ?
+      WHERE u.id = $1
     `, [userId]);
 
-    const [walletRows] = await pool.query(`SELECT coin_balance FROM wallets WHERE user_id = ?`, [userId]);
+    const [walletRows] = await pool.query(`SELECT coin_balance FROM wallets WHERE user_id = $1`, [userId]);
 
     if (userRows.length === 0) {
       return res.status(404).json({ status: 'error', message: 'User not found' });
@@ -51,10 +51,9 @@ exports.editProfile = async (req, res) => {
       return res.status(400).json({ status: 'error', message: 'username and avatar_id are required' });
     }
 
-    await pool.query(`UPDATE users SET full_name = ?, avatar_id = ? WHERE id = ?`, [username, avatar_id, userId]);
+    await pool.query(`UPDATE users SET full_name = $1, avatar_id = $2 WHERE id = $3`, [username, avatar_id, userId]);
 
-    // Fetch the new avatar URL to return it
-    const [avatarRows] = await pool.query(`SELECT avatar_url FROM avatars WHERE id = ?`, [avatar_id]);
+    const [avatarRows] = await pool.query(`SELECT avatar_url FROM avatars WHERE id = $1`, [avatar_id]);
     const avatarUrl = avatarRows.length > 0 ? avatarRows[0].avatar_url : 'https://hima-bucket.s3.amazonaws.com/default-avatar.png';
 
     res.status(200).json({
@@ -87,7 +86,7 @@ exports.getTransactions = async (req, res) => {
         'success' AS status, 
         created_at AS timestamp 
       FROM coin_transactions 
-      WHERE user_id = ?
+      WHERE user_id = $1
       ORDER BY created_at DESC 
       LIMIT 50
     `, [userId]);
@@ -126,7 +125,7 @@ exports.toggleDnd = async (req, res) => {
     const userId = req.user.id;
     const { enabled } = req.body;
 
-    await pool.query(`UPDATE users SET dnd_enabled = ? WHERE id = ?`, [enabled ? 1 : 0, userId]);
+    await pool.query(`UPDATE users SET dnd_enabled = $1 WHERE id = $2`, [enabled ? true : false, userId]);
 
     res.status(200).json({
       status: 'success',
@@ -147,7 +146,7 @@ exports.getWarnings = async (req, res) => {
     const [rows] = await pool.query(`
       SELECT id, reason, created_at AS issued_at 
       FROM user_warnings 
-      WHERE user_id = ? 
+      WHERE user_id = $1 
       ORDER BY created_at DESC
     `, [userId]);
 
@@ -167,7 +166,7 @@ exports.getWarnings = async (req, res) => {
 exports.deleteAccount = async (req, res) => {
   try {
     const userId = req.user.id;
-    await pool.query(`UPDATE users SET account_status = 'pending_deletion' WHERE id = ?`, [userId]);
+    await pool.query(`UPDATE users SET account_status = 'pending_deletion' WHERE id = $1`, [userId]);
 
     res.status(200).json({
       status: 'success',
