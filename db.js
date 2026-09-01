@@ -1,9 +1,18 @@
 const { Pool } = require('pg');
 require('dotenv').config();
 
+let connectionString = process.env.DATABASE_URL;
+
+// Render requires ?ssl=true for external connections, but internal connections might fail with it
+// A safer approach for Render is to just pass the string if it's internal, and add ssl if external.
+if (connectionString && connectionString.includes('.render.com') && !connectionString.includes('ssl=true')) {
+  connectionString += (connectionString.includes('?') ? '&' : '?') + 'ssl=true';
+}
+
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
+  connectionString: connectionString,
+  // If it's the internal URL (dpg-xxxx-a), do NOT use SSL.
+  ssl: (connectionString && connectionString.includes('.render.com')) ? { rejectUnauthorized: false } : false
 });
 
 pool.connect()
