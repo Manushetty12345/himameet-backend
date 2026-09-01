@@ -2,25 +2,11 @@ const { Pool } = require('pg');
 require('dotenv').config();
 
 let connectionString = process.env.DATABASE_URL;
-let useSSL = false;
 
-if (connectionString) {
-  // If the user accidentally provided the External Render URL in the dashboard, 
-  // force it to the Internal URL because external URLs are blocked from inside Render's network.
-  // Only do this if we are actually running on Render!
-  if (process.env.RENDER === 'true' && connectionString.includes('.render.com')) {
-    console.log('DEBUG: Converting External Database URL to Internal Database URL');
-    connectionString = connectionString.replace('.singapore-postgres.render.com', '');
-    connectionString = connectionString.replace('?ssl=true', '');
-    connectionString = connectionString.replace('&ssl=true', '');
-  }
-
-  // External connections to Render (e.g. from local PC) REQUIRE SSL.
-  // Internal connections do NOT use SSL.
-  if (connectionString.includes('.render.com')) {
-    useSSL = { rejectUnauthorized: false };
-  }
-}
+// If it's an internal Render URL (doesn't have .render.com), do not use SSL
+// If it's an external URL, use SSL
+const isInternal = connectionString && !connectionString.includes('.render.com');
+const useSSL = isInternal ? false : { rejectUnauthorized: false };
 
 const pool = new Pool({
   connectionString: connectionString,
