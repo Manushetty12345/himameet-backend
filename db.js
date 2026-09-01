@@ -3,16 +3,18 @@ require('dotenv').config();
 
 let connectionString = process.env.DATABASE_URL;
 
-// Render requires ?ssl=true for external connections, but internal connections might fail with it
-// A safer approach for Render is to just pass the string if it's internal, and add ssl if external.
-if (connectionString && connectionString.includes('.render.com') && !connectionString.includes('ssl=true')) {
-  connectionString += (connectionString.includes('?') ? '&' : '?') + 'ssl=true';
+// If the user accidentally provided the External Render URL in the dashboard, 
+// force it to the Internal URL because external URLs are blocked from inside Render's network.
+if (connectionString && connectionString.includes('.render.com')) {
+  console.log('DEBUG: Converting External Database URL to Internal Database URL');
+  connectionString = connectionString.replace('.singapore-postgres.render.com', '');
+  connectionString = connectionString.replace('?ssl=true', '');
+  connectionString = connectionString.replace('&ssl=true', '');
 }
 
 const pool = new Pool({
   connectionString: connectionString,
-  // If it's the internal URL (dpg-xxxx-a), do NOT use SSL.
-  ssl: (connectionString && connectionString.includes('.render.com')) ? { rejectUnauthorized: false } : false
+  ssl: false // Internal Render connections do not use SSL
 });
 
 pool.connect()
