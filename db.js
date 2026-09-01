@@ -18,6 +18,9 @@ const pool = new Pool({
 pool.connect()
   .then(async (client) => {
     console.log('✅ Connected to PostgreSQL database');
+    console.log('DEBUG DATABASE_URL is defined:', !!process.env.DATABASE_URL);
+    console.log('DEBUG SSL option used:', (connectionString && connectionString.includes('.render.com')) ? 'rejectUnauthorized: false' : 'false');
+    
     try {
       // Auto-initialize schema if it doesn't exist
       const res = await client.query("SELECT to_regclass('public.users');");
@@ -39,6 +42,8 @@ pool.connect()
   })
   .catch(err => {
     console.error('❌ PostgreSQL Connection Error:', err.message);
+    console.error('DEBUG DATABASE_URL is defined:', !!process.env.DATABASE_URL);
+    console.error('DEBUG Connection String:', connectionString ? connectionString.replace(/:[^:@]+@/, ':***@') : 'undefined');
   });
 
 // Helper to mimic mysql2's [rows] = await pool.query() pattern
