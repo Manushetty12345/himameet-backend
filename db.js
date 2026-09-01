@@ -5,7 +5,8 @@ let connectionString = process.env.DATABASE_URL;
 
 // If the user accidentally provided the External Render URL in the dashboard, 
 // force it to the Internal URL because external URLs are blocked from inside Render's network.
-if (connectionString && connectionString.includes('.render.com')) {
+// Only do this if we are actually running on Render!
+if (process.env.RENDER === 'true' && connectionString && connectionString.includes('.render.com')) {
   console.log('DEBUG: Converting External Database URL to Internal Database URL');
   connectionString = connectionString.replace('.singapore-postgres.render.com', '');
   connectionString = connectionString.replace('?ssl=true', '');
