@@ -55,3 +55,4 @@ exports.verifyOTP = async (mobileNumber, countryCode, otp) => {
     throw new Error((error.response && error.response.data && error.response.data.message) || 'Failed to verify OTP');
   }
 };
+
