@@ -2,6 +2,8 @@
 const jwt = require('jsonwebtoken');
 const { v4: uuidv4 } = require('uuid');
 const msg91 = require('../utils/msg91');
+const admin = require('firebase-admin');
+admin.initializeApp({ projectId: 'himameet-bc438' });
 
 const JWT_SECRET = process.env.JWT_SECRET;
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '30d';
@@ -40,7 +42,7 @@ exports.sendOtp = async (req, res) => {
  */
 exports.verifyOtp = async (req, res) => {
   try {
-    let { country_code, mobile_number, otp } = req.body;
+    let { country_code, mobile_number, otp, idToken } = req.body;
 
     if (!mobile_number || !country_code || !otp) {
       return res.status(400).json({ status: 'error', message: 'Missing required fields' });
@@ -48,11 +50,23 @@ exports.verifyOtp = async (req, res) => {
 
     const cleanCountryCode = country_code.replace('+', '');
 
-    // 1. Verify with MSG91
-    const response = await msg91.verifyOTP(mobile_number, cleanCountryCode, otp);
-
-    if (response.type !== 'success') {
-      return res.status(400).json({ status: 'error', message: 'Invalid OTP' });
+    // 1. Verify with Firebase or MSG91
+    if (idToken) {
+      try {
+        const decodedToken = await admin.auth().verifyIdToken(idToken);
+        const expectedPhone = '+' + cleanCountryCode + mobile_number;
+        if (decodedToken.phone_number !== expectedPhone) {
+          return res.status(400).json({ status: 'error', message: 'Phone number mismatch with Firebase token' });
+        }
+      } catch (err) {
+        console.error('Firebase token verification error:', err);
+        return res.status(400).json({ status: 'error', message: 'Invalid Firebase authentication' });
+      }
+    } else {
+      const response = await msg91.verifyOTP(mobile_number, cleanCountryCode, otp);
+      if (response.type !== 'success') {
+        return res.status(400).json({ status: 'error', message: 'Invalid OTP' });
+      }
     }
 
     // 2. Check if user exists in DB
