@@ -2,16 +2,18 @@
 
 const MSG91_AUTH_KEY = process.env.MSG91_AUTH_KEY;
 const MSG91_TEMPLATE_ID = process.env.MSG91_TEMPLATE_ID;
+const IS_MOCK = process.env.MOCK_OTP === 'true';
 
 exports.sendOTP = async (mobileNumber, countryCode) => {
   console.log('📤 [MSG91] sendOTP called');
   console.log('📤 [MSG91] Auth Key present:', !!MSG91_AUTH_KEY, '| Starts with:', MSG91_AUTH_KEY ? MSG91_AUTH_KEY.slice(0,6) : 'NULL');
   console.log('📤 [MSG91] Template ID:', MSG91_TEMPLATE_ID);
   console.log('📤 [MSG91] Mobile:', countryCode + mobileNumber);
+  console.log('📤 [MSG91] MOCK_OTP mode:', IS_MOCK);
 
-  if (!MSG91_AUTH_KEY || MSG91_AUTH_KEY === 'YOUR_MSG91_KEY_HERE') {
-    console.log('⚠️  [MSG91] No real key — MOCK mode');
-    return { type: 'success', message: 'OTP sent successfully (MOCK)' };
+  if (IS_MOCK) {
+    console.log('✅ [MOCK] OTP sent (mock). Use 123456 to verify.');
+    return { type: 'success', message: 'OTP sent (MOCK - use 123456)' };
   }
 
   try {
@@ -31,14 +33,15 @@ exports.sendOTP = async (mobileNumber, countryCode) => {
 exports.verifyOTP = async (mobileNumber, countryCode, otp) => {
   console.log('🔍 [MSG91] verifyOTP called');
   console.log('🔍 [MSG91] Mobile:', countryCode + mobileNumber, '| OTP:', otp);
-  console.log('🔍 [MSG91] Auth Key present:', !!MSG91_AUTH_KEY, '| Starts with:', MSG91_AUTH_KEY ? MSG91_AUTH_KEY.slice(0,6) : 'NULL');
+  console.log('🔍 [MSG91] MOCK_OTP mode:', IS_MOCK);
 
-  if (!MSG91_AUTH_KEY || MSG91_AUTH_KEY === 'YOUR_MSG91_KEY_HERE') {
-    console.log('⚠️  [MSG91] No real key — MOCK mode');
+  if (IS_MOCK) {
     if (otp === '123456') {
+      console.log('✅ [MOCK] OTP verified successfully.');
       return { type: 'success', message: 'OTP verified (MOCK)' };
     } else {
-      return { type: 'error', message: 'Invalid OTP' };
+      console.log('❌ [MOCK] Wrong OTP. Use 123456.');
+      return { type: 'error', message: 'Invalid OTP. Use 123456 in mock mode.' };
     }
   }
 
@@ -55,4 +58,3 @@ exports.verifyOTP = async (mobileNumber, countryCode, otp) => {
     throw new Error((error.response && error.response.data && error.response.data.message) || 'Failed to verify OTP');
   }
 };
-
