@@ -1,4 +1,4 @@
-const pool = require('../db');
+﻿const pool = require('../db');
 const jwt = require('jsonwebtoken');
 const { v4: uuidv4 } = require('uuid');
 const msg91 = require('../utils/msg91');
@@ -187,5 +187,64 @@ exports.logout = async (req, res) => {
   } catch (error) {
     console.error('Logout error:', error);
     res.status(500).json({ status: 'error', message: 'Failed to process logout completely' });
+  }
+};
+
+/**
+ * 1.5 Check Session
+ */
+exports.checkSession = async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ status: 'error', message: 'No token provided' });
+    }
+
+    const token = authHeader.split(' ')[1];
+    
+    try {
+      const decoded = jwt.verify(token, JWT_SECRET);
+      
+      // If it has temp_phone, it's a temp token
+      if (decoded.temp_phone) {
+        return res.status(200).json({
+          status: 'success',
+          data: {
+            is_new_user: true
+          }
+        });
+      }
+      
+      // If it has id, it's a full token
+      if (decoded.id) {
+        const [rows] = await pool.query(`SELECT id, user_role, full_name, phone_number FROM users WHERE id = $1`, [decoded.id]);
+        
+        if (rows.length === 0) {
+          return res.status(401).json({ status: 'error', message: 'User not found' });
+        }
+        
+        const user = rows[0];
+        return res.status(200).json({
+          status: 'success',
+          data: {
+            is_new_user: false,
+            user: {
+              id: user.id,
+              role: user.user_role,
+              name: user.full_name,
+              phone_number: user.phone_number
+            }
+          }
+        });
+      }
+      
+      return res.status(401).json({ status: 'error', message: 'Invalid token payload' });
+      
+    } catch (err) {
+      return res.status(401).json({ status: 'error', message: 'Invalid or expired token' });
+    }
+  } catch (error) {
+    console.error('Check Session Error:', error);
+    return res.status(500).json({ status: 'error', message: 'Internal Server Error' });
   }
 };
