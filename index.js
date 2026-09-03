@@ -57,9 +57,9 @@ app.get('/admin/insert-test', async (req, res) => {
   try {
     client = await pool.connect();
     await client.query(`
-      INSERT INTO users (id, phone_number, full_name, role, status) 
-      VALUES ('test-user-123', '9999999999', 'Test User', 'user', 'active') 
-      ON CONFLICT (id) DO NOTHING
+      INSERT INTO users (phone_number, full_name, user_role, account_status) 
+      VALUES ('9999999999', 'Test User', 'user', 'good_standing') 
+      ON CONFLICT (phone_number) DO NOTHING
     `);
     res.json({ message: 'Dummy user inserted successfully! Go back to /admin/users to see it.' });
   } catch (e) {
