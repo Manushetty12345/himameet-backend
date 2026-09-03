@@ -35,47 +35,6 @@ app.get('/health', (req, res) => {
 const path = require('path');
 app.use('/public', express.static(path.join(__dirname, 'public')));
 
-// Temporary endpoint to seed languages from the app screenshots
-app.get('/admin/seed-languages', async (req, res) => {
-  const pool = require('./db');
-  let client;
-  try {
-    client = await pool.connect();
-    
-    const languages = [
-      { english: 'Tamil', native: 'தமிழ்', code: 'ta' },
-      { english: 'Telugu', native: 'తెలుగు', code: 'te' },
-      { english: 'Malayalam', native: 'മലയാളം', code: 'ml' },
-      { english: 'Kannada', native: 'ಕನ್ನಡ', code: 'kn' },
-      { english: 'Hindi', native: 'हिंदी', code: 'hi' },
-      { english: 'Punjabi', native: 'ਪੰਜਾਬੀ', code: 'pa' },
-      { english: 'Marathi', native: 'मराठी', code: 'mr' },
-      { english: 'Bengali', native: 'বাংলা', code: 'bn' },
-      { english: 'Assamese', native: 'অসমীয়া', code: 'as' },
-      { english: 'Odia', native: 'ଓଡ଼ିଆ', code: 'or' },
-      { english: 'Gujarati', native: 'ગુજરાતી', code: 'gu' }
-    ];
-
-    await client.query('BEGIN');
-    await client.query('DELETE FROM languages'); 
-    
-    for (let i = 0; i < languages.length; i++) {
-      await client.query(
-        'INSERT INTO languages (name_english, name_native, language_code, display_order) VALUES ($1, $2, $3, $4)',
-        [languages[i].english, languages[i].native, languages[i].code, i + 1]
-      );
-    }
-    await client.query('COMMIT');
-
-    res.json({ message: '11 Languages successfully added to the database!' });
-  } catch (e) {
-    if (client) await client.query('ROLLBACK');
-    res.status(500).json({ error: e.message });
-  } finally {
-    if (client) client.release();
-  }
-});
-
 // Mount Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/onboarding', onboardingRoutes);
