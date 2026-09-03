@@ -35,39 +35,6 @@ app.get('/health', (req, res) => {
 const path = require('path');
 app.use('/public', express.static(path.join(__dirname, 'public')));
 
-// Temporary endpoint to seed interests (tags) from the app screenshots
-app.get('/admin/seed-interests', async (req, res) => {
-  const pool = require('./db');
-  let client;
-  try {
-    client = await pool.connect();
-    
-    const interests = [
-      'Politics', 'Art', 'Sports', 'Movies',
-      'Music', 'Foodie', 'Travel',
-      'Photography', 'Love', 'Cooking'
-    ];
-
-    await client.query('BEGIN');
-    await client.query('DELETE FROM tags'); 
-    
-    for (let i = 0; i < interests.length; i++) {
-      await client.query(
-        `INSERT INTO tags (name, tag_type, display_order) VALUES ($1, 'interest', $2)`,
-        [interests[i], i + 1]
-      );
-    }
-    await client.query('COMMIT');
-
-    res.json({ message: '10 Interests successfully added to the database!' });
-  } catch (e) {
-    if (client) await client.query('ROLLBACK');
-    res.status(500).json({ error: e.message });
-  } finally {
-    if (client) client.release();
-  }
-});
-
 // Mount Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/onboarding', onboardingRoutes);
