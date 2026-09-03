@@ -50,6 +50,25 @@ app.get('/admin/users', async (req, res) => {
   }
 });
 
+// Temporary endpoint to insert a dummy user (just to prove the DB is saving data)
+app.get('/admin/insert-test', async (req, res) => {
+  const pool = require('./db');
+  let client;
+  try {
+    client = await pool.connect();
+    await client.query(`
+      INSERT INTO users (id, phone_number, full_name, role, status) 
+      VALUES ('test-user-123', '9999999999', 'Test User', 'user', 'active') 
+      ON CONFLICT (id) DO NOTHING
+    `);
+    res.json({ message: 'Dummy user inserted successfully! Go back to /admin/users to see it.' });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  } finally {
+    if (client) client.release();
+  }
+});
+
 
 // Mount Routes
 app.use('/api/auth', authRoutes);
