@@ -35,10 +35,10 @@ app.get('/health', (req, res) => {
 app.get('/admin/users', async (req, res) => {
   const pool = require('./db');
   try {
-    const result = await pool.query(
+    const [rows] = await pool.query(
       'SELECT id, phone_number, full_name, gender, created_at FROM users ORDER BY created_at DESC LIMIT 20'
     );
-    res.json({ total: result.rows.length, users: result.rows });
+    res.json({ total: rows.length, users: rows });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
