@@ -6,8 +6,8 @@ Base URL: `https://api.himaapp.com/v1`
 
 ## 1. Authentication APIs
 
-### 1.1 Send OTP
-Triggers MSG91 to send a 6-digit OTP to the user's mobile number.
+### 1.1 ✅ [COMPLETED] Send OTP
+Triggers BhashSMS to send a 6-digit OTP to the user's mobile number.
 - **Endpoint:** `/auth/send-otp`
 - **Method:** `POST`
 
@@ -30,8 +30,8 @@ Triggers MSG91 to send a 6-digit OTP to the user's mobile number.
 }
 ```
 
-### 1.2 Verify OTP
-Verifies the OTP using MSG91 and handles user login/registration.
+### 1.2 ✅ [COMPLETED] Verify OTP
+Verifies the OTP and handles user login/registration.
 - **Endpoint:** `/auth/verify-otp`
 - **Method:** `POST`
 
