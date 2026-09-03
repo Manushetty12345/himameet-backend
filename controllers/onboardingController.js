@@ -34,11 +34,11 @@ exports.getAvatars = async (req, res) => {
  */
 exports.getLanguages = async (req, res) => {
   try {
-    const [rows] = await pool.query(`SELECT id, name_english, language_code FROM languages WHERE is_active = true`);
+    const [rows] = await pool.query(`SELECT id, name_english, name_native, language_code FROM languages WHERE is_active = true ORDER BY display_order ASC`);
 
     let data = rows;
     if (data.length === 0) {
-      data = [{ id: 1, name_english: 'Kannada', language_code: 'kn' }];
+      data = [{ id: 1, name_english: 'Kannada', name_native: 'ಕನ್ನಡ', language_code: 'kn' }];
     }
 
     res.status(200).json({
