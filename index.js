@@ -31,44 +31,6 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', message: 'Hima Backend is running' });
 });
 
-// Temporary admin endpoint to view users (Render blocks external DB connections on free tier)
-app.get('/admin/users', async (req, res) => {
-  const pool = require('./db');
-  let client;
-  try {
-    client = await pool.connect();
-    const result = await client.query(
-      'SELECT id, phone_number, full_name, gender, created_at FROM users ORDER BY created_at DESC LIMIT 20'
-    );
-    // client.query returns an array in this codebase due to the wrapper in db.js: [rows, fields]
-    const rows = Array.isArray(result) ? result[0] : result.rows;
-    res.json({ total: rows ? rows.length : 0, users: rows || [] });
-  } catch (e) {
-    res.status(500).json({ error: e.message });
-  } finally {
-    if (client) client.release();
-  }
-});
-
-// Temporary endpoint to insert a dummy user (just to prove the DB is saving data)
-app.get('/admin/insert-test', async (req, res) => {
-  const pool = require('./db');
-  let client;
-  try {
-    client = await pool.connect();
-    await client.query(`
-      INSERT INTO users (phone_number, full_name, user_role, account_status) 
-      VALUES ('9999999999', 'Test User', 'user', 'good_standing') 
-      ON CONFLICT (phone_number) DO NOTHING
-    `);
-    res.json({ message: 'Dummy user inserted successfully! Go back to /admin/users to see it.' });
-  } catch (e) {
-    res.status(500).json({ error: e.message });
-  } finally {
-    if (client) client.release();
-  }
-});
-
 
 // Mount Routes
 app.use('/api/auth', authRoutes);
