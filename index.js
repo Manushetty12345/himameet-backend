@@ -31,20 +31,6 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', message: 'Hima Backend is running' });
 });
 
-// Temporary admin endpoint to view users (remove after testing)
-app.get('/admin/users', async (req, res) => {
-  const pool = require('./db');
-  try {
-    const result = await pool.query(
-      'SELECT id, phone_number, full_name, gender, created_at FROM users ORDER BY created_at DESC LIMIT 20'
-    );
-    res.json({ total: result.rows.length, users: result.rows });
-  } catch (e) {
-    res.status(500).json({ error: e.message });
-  }
-});
-
-
 // Mount Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/onboarding', onboardingRoutes);
