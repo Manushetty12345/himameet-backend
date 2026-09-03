@@ -36,18 +36,27 @@ exports.sendOTP = async (mobileNumber, countryCode) => {
     );
     const url = `http://bhashsms.com/api/sendmsg.php?user=${BHASH_USER}&pass=${BHASH_PASS}&sender=${BHASH_SENDER}&phone=${mobileNumber}&text=${text}&priority=ndnd&stype=normal`;
 
-    console.log('📤 [BhashSMS] Sending OTP...');
-    const response = await axios.get(url);
-    const resData = String(response.data || '');
+    console.log('📤 [BhashSMS] Sending OTP to:', mobileNumber);
+    const response = await axios.get(url, { timeout: 10000 });
+    const resData = String(response.data || '').trim();
 
-    // BhashSMS returns a response starting with a numeric message ID on success
-    if (resData.trim() !== '' && !resData.toLowerCase().includes('error')) {
-      console.log('✅ [BhashSMS] Success:', resData);
-      return { type: 'success', message: 'OTP sent successfully' };
-    } else {
-      console.error('❌ [BhashSMS] Rejected:', resData);
-      throw new Error('BhashSMS failed to send OTP');
+    console.log('📥 [BhashSMS] Raw response:', JSON.stringify(resData));
+
+    // BhashSMS returns numeric message ID on success (e.g. "12345678")
+    // Treat any non-empty response that doesn't explicitly say "error" as success
+    if (!resData) {
+      console.error('❌ [BhashSMS] Empty response from API');
+      throw new Error('BhashSMS returned empty response');
     }
+
+    if (resData.toLowerCase().startsWith('error') || resData.toLowerCase().includes('invalid')) {
+      console.error('❌ [BhashSMS] API Error:', resData);
+      throw new Error(`BhashSMS Error: ${resData}`);
+    }
+
+    console.log('✅ [BhashSMS] OTP sent successfully. Response:', resData);
+    return { type: 'success', message: 'OTP sent successfully' };
+
   } catch (error) {
     console.error('❌ [BhashSMS] Error:', error.message);
     throw new Error('Failed to send OTP via BhashSMS');
