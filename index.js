@@ -34,13 +34,19 @@ app.get('/health', (req, res) => {
 // Temporary admin endpoint to view users (Render blocks external DB connections on free tier)
 app.get('/admin/users', async (req, res) => {
   const pool = require('./db');
+  let client;
   try {
-    const [rows] = await pool.query(
+    client = await pool.connect();
+    const result = await client.query(
       'SELECT id, phone_number, full_name, gender, created_at FROM users ORDER BY created_at DESC LIMIT 20'
     );
-    res.json({ total: rows.length, users: rows });
+    // client.query returns an array in this codebase due to the wrapper in db.js: [rows, fields]
+    const rows = Array.isArray(result) ? result[0] : result.rows;
+    res.json({ total: rows ? rows.length : 0, users: rows || [] });
   } catch (e) {
     res.status(500).json({ error: e.message });
+  } finally {
+    if (client) client.release();
   }
 });
 
