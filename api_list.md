@@ -131,7 +131,22 @@ Logs the user out and revokes the push notification token.
 {
   "status": "success",
   "data": [
-    {"id": 1, "name_english": "Kannada", "language_code": "kn"}
+    {"id": 1, "name_english": "Kannada", "name_native": "ಕನ್ನಡ", "language_code": "kn"}
+  ]
+}
+```
+
+### 2.3 Get Interests (Tags)
+- **Endpoint:** `/onboarding/interests`
+- **Method:** `GET`
+
+**Response:**
+```json
+{
+  "status": "success",
+  "data": [
+    {"id": 1, "name": "Politics"},
+    {"id": 2, "name": "Art"}
   ]
 }
 ```

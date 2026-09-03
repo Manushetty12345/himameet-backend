@@ -52,7 +52,29 @@ exports.getLanguages = async (req, res) => {
 };
 
 /**
- * 2.3 Save Profile Setup
+ * 2.3 Get Interests (Tags)
+ */
+exports.getInterests = async (req, res) => {
+  try {
+    const [rows] = await pool.query(`SELECT id, name FROM tags WHERE tag_type = 'interest' AND is_active = true ORDER BY display_order ASC`);
+
+    let data = rows;
+    if (data.length === 0) {
+      data = [{ id: 1, name: 'Photography' }];
+    }
+
+    res.status(200).json({
+      status: 'success',
+      data
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ status: 'error', message: 'Internal Server Error' });
+  }
+};
+
+/**
+ * 2.4 Save Profile Setup
  */
 exports.saveProfileSetup = async (req, res) => {
   try {
