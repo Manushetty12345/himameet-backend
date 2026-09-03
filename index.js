@@ -35,49 +35,6 @@ app.get('/health', (req, res) => {
 const path = require('path');
 app.use('/public', express.static(path.join(__dirname, 'public')));
 
-// Temporary endpoint to insert the 10 avatar URLs into the database
-app.get('/admin/seed-avatars', async (req, res) => {
-  const pool = require('./db');
-  let client;
-  try {
-    client = await pool.connect();
-    
-    const avatars = [
-      // 5 Male Avatars
-      { url: 'https://himameet-backend.onrender.com/public/avatars/male_1.png', gender: 'male' },
-      { url: 'https://himameet-backend.onrender.com/public/avatars/male_2.png', gender: 'male' },
-      { url: 'https://himameet-backend.onrender.com/public/avatars/male_3.png', gender: 'male' },
-      { url: 'https://himameet-backend.onrender.com/public/avatars/male_4.png', gender: 'male' },
-      { url: 'https://himameet-backend.onrender.com/public/avatars/male_5.png', gender: 'male' },
-      // 5 Female Avatars
-      { url: 'https://himameet-backend.onrender.com/public/avatars/female_1.png', gender: 'female' },
-      { url: 'https://himameet-backend.onrender.com/public/avatars/female_2.png', gender: 'female' },
-      { url: 'https://himameet-backend.onrender.com/public/avatars/female_3.png', gender: 'female' },
-      { url: 'https://himameet-backend.onrender.com/public/avatars/female_4.png', gender: 'female' },
-      { url: 'https://himameet-backend.onrender.com/public/avatars/female_5.png', gender: 'female' },
-    ];
-
-    await client.query('BEGIN');
-    // Clear existing to avoid duplicates if run multiple times
-    await client.query('DELETE FROM avatars'); 
-    
-    for (let i = 0; i < avatars.length; i++) {
-      await client.query(
-        'INSERT INTO avatars (avatar_url, gender, display_order) VALUES ($1, $2, $3)',
-        [avatars[i].url, avatars[i].gender, i + 1]
-      );
-    }
-    await client.query('COMMIT');
-
-    res.json({ message: '10 Avatars successfully added to the database!' });
-  } catch (e) {
-    if (client) await client.query('ROLLBACK');
-    res.status(500).json({ error: e.message });
-  } finally {
-    if (client) client.release();
-  }
-});
-
 // Mount Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/onboarding', onboardingRoutes);
