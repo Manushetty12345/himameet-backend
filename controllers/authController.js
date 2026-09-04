@@ -216,7 +216,10 @@ exports.checkSession = async (req, res) => {
       
       // If it has id, it's a full token
       if (decoded.id) {
-        const [rows] = await pool.query(`SELECT id, user_role, full_name, phone_number FROM users WHERE id = $1`, [decoded.id]);
+        const [rows] = await pool.query(
+          `SELECT id, user_role, full_name, phone_number, profile_setup_complete FROM users WHERE id = $1`,
+          [decoded.id]
+        );
         
         if (rows.length === 0) {
           return res.status(401).json({ status: 'error', message: 'User not found' });
@@ -227,6 +230,7 @@ exports.checkSession = async (req, res) => {
           status: 'success',
           data: {
             is_new_user: false,
+            profile_setup_complete: user.profile_setup_complete ?? true,
             user: {
               id: user.id,
               role: user.user_role,
