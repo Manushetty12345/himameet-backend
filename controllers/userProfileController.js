@@ -158,7 +158,40 @@ exports.getWarnings = async (req, res) => {
       data: rows
     });
   } catch (error) {
-    console.error('Error fetching warnings:', error);
+    console.error('Error fetching admin warnings:', error);
+    res.status(500).json({ status: 'error', message: 'Internal Server Error' });
+  }
+};
+
+/**
+ * 10.11 Get Tracked Creators (Online Alerts)
+ */
+exports.getTrackedCreators = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const [rows] = await pool.query(`
+      SELECT 
+        u.id AS creator_id, 
+        u.full_name AS name, 
+        a.avatar_url,
+        true AS notify_enabled
+      FROM online_notify_subscriptions ons
+      JOIN users u ON u.id = ons.target_user_id
+      LEFT JOIN avatars a ON u.avatar_id = a.id
+      WHERE ons.subscriber_id = $1
+    `, [userId]);
+
+    const formattedData = rows.map(row => ({
+      ...row,
+      avatar_url: row.avatar_url || 'https://hima-bucket.s3.amazonaws.com/default-avatar.png'
+    }));
+
+    res.status(200).json({
+      status: 'success',
+      data: formattedData
+    });
+  } catch (error) {
+    console.error('Error fetching tracked creators:', error);
     res.status(500).json({ status: 'error', message: 'Internal Server Error' });
   }
 };

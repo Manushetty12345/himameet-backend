@@ -21,6 +21,9 @@ router.post('/dnd', protect, userProfileController.toggleDnd);
 // 10.6 Get Admin Warnings
 router.get('/warnings', protect, userProfileController.getWarnings);
 
+// 10.11 Get Tracked Creators (Online Alerts)
+router.get('/tracked-creators', protect, userProfileController.getTrackedCreators);
+
 // 10.8 Delete Account
 router.post('/delete-account', protect, userProfileController.deleteAccount);
 
