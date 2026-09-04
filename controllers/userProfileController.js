@@ -12,9 +12,12 @@ exports.getMyProfile = async (req, res) => {
         u.id AS user_id, 
         u.full_name AS username, 
         a.avatar_url, 
-        u.dnd_enabled
+        u.dnd_enabled,
+        l.name_english AS language_name,
+        l.name_native  AS language_native
       FROM users u
       LEFT JOIN avatars a ON u.avatar_id = a.id
+      LEFT JOIN languages l ON u.language_id = l.id
       WHERE u.id = $1
     `, [userId]);
 
