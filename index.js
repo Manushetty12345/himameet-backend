@@ -15,6 +15,7 @@ const walletRoutes = require('./routes/walletRoutes');
 const friendRoutes = require('./routes/friendRoutes');
 const chatRoutes = require('./routes/chatRoutes');
 const callRoutes = require('./routes/callRoutes');
+const adminRoutes = require('./routes/adminRoutes');
 
 const setupChatSocket = require('./sockets/chatSocket');
 
@@ -50,6 +51,7 @@ app.use('/api/friends', friendRoutes);
 app.use('/api/chat', chatRoutes);
 app.use('/api/call', callRoutes);
 app.use('/api/calls', callRoutes);
+app.use('/api/admin', adminRoutes); // ⚠️ TEMPORARY — remove after use
 
 // Setup WebSockets
 setupChatSocket(server);
