@@ -3,8 +3,8 @@ const router = express.Router();
 const db = require('../db');
 
 // ⚠️ TEMPORARY ADMIN ENDPOINT — DELETE AFTER USE
-// DELETE /api/admin/delete-user?phone=8088591796&secret=hima_admin_2026
-router.delete('/delete-user', async (req, res) => {
+// GET /api/admin/delete-user?phone=8088591796&secret=hima_admin_2026
+router.get('/delete-user', async (req, res) => {
   const { phone, secret } = req.query;
 
   // Simple secret key guard so random people can't call this
