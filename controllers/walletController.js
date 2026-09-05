@@ -11,12 +11,13 @@ const APP_BASE_URL = process.env.APP_BASE_URL || 'https://himameet-backend.onren
 
 /**
  * 5.0 Get Wallet Balance
+ * db.js wraps pool.query to return [rows, fields] like mysql2
  */
 exports.getBalance = async (req, res) => {
   try {
     const userId = req.user.id;
-    const result = await pool.query(`SELECT coin_balance FROM wallets WHERE user_id = $1`, [userId]);
-    const balance = result.rows.length > 0 ? parseFloat(result.rows[0].coin_balance) : 0;
+    const [rows] = await pool.query(`SELECT coin_balance FROM wallets WHERE user_id = $1`, [userId]);
+    const balance = rows.length > 0 ? parseFloat(rows[0].coin_balance) : 0;
     res.status(200).json({ status: 'success', data: { coin_balance: balance } });
   } catch (error) {
     console.error('Error fetching balance:', error);
@@ -29,10 +30,10 @@ exports.getBalance = async (req, res) => {
  */
 exports.getPackages = async (req, res) => {
   try {
-    const result = await pool.query(
+    const [rows] = await pool.query(
       `SELECT id, coins, price AS price_inr, discount_percent AS discount_percentage, is_welcome_offer FROM coin_packages WHERE is_active = true ORDER BY price ASC`
     );
-    res.status(200).json({ status: 'success', data: result.rows });
+    res.status(200).json({ status: 'success', data: rows });
   } catch (error) {
     console.error('Error fetching packages:', error);
     res.status(500).json({ status: 'error', message: 'Internal Server Error' });
@@ -51,14 +52,14 @@ exports.initiateRecharge = async (req, res) => {
       return res.status(400).json({ status: 'error', message: 'package_id is required' });
     }
 
-    const pkgResult = await pool.query(
+    const [pkgRows] = await pool.query(
       `SELECT price, coins FROM coin_packages WHERE id = $1`,
       [package_id]
     );
-    if (pkgResult.rows.length === 0) {
+    if (pkgRows.length === 0) {
       return res.status(404).json({ status: 'error', message: 'Package not found' });
     }
-    const pkg = pkgResult.rows[0];
+    const pkg = pkgRows[0];
     const amountInPaise = Math.round(parseFloat(pkg.price) * 100);
 
     const merchantTransactionId = 'TXN_' + uuidv4().replace(/-/g, '').substring(0, 15).toUpperCase();
@@ -79,6 +80,19 @@ exports.initiateRecharge = async (req, res) => {
     const stringToHash = base64Payload + '/pg/v1/pay' + PHONEPE_SALT_KEY;
     const sha256Hash = crypto.createHash('sha256').update(stringToHash).digest('hex');
     const checksum = sha256Hash + '###' + PHONEPE_SALT_INDEX;
+
+    // Ensure recharge_orders table exists
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS recharge_orders (
+        id TEXT PRIMARY KEY,
+        user_id INTEGER,
+        package_id INTEGER,
+        amount NUMERIC,
+        coins INTEGER,
+        status TEXT DEFAULT 'PENDING',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
 
     // Call PhonePe API
     const phonepeResponse = await axios.post(
@@ -101,19 +115,6 @@ exports.initiateRecharge = async (req, res) => {
       console.error('PhonePe response:', JSON.stringify(phonepeData));
       return res.status(502).json({ status: 'error', message: 'Failed to get payment URL from PhonePe' });
     }
-
-    // Ensure recharge_orders table exists
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS recharge_orders (
-        id TEXT PRIMARY KEY,
-        user_id INTEGER,
-        package_id INTEGER,
-        amount NUMERIC,
-        coins INTEGER,
-        status TEXT DEFAULT 'PENDING',
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
 
     await pool.query(
       `INSERT INTO recharge_orders (id, user_id, package_id, amount, coins, status)
@@ -157,16 +158,16 @@ exports.phonepeWebhook = async (req, res) => {
 
     await pool.query('BEGIN');
 
-    const orderResult = await pool.query(
+    const [orders] = await pool.query(
       `SELECT * FROM recharge_orders WHERE id = $1 FOR UPDATE`,
       [merchantTransactionId]
     );
 
-    if (orderResult.rows.length === 0) {
+    if (orders.length === 0) {
       await pool.query('ROLLBACK');
       return res.status(404).send('Order not found');
     }
-    const order = orderResult.rows[0];
+    const order = orders[0];
 
     if (order.status !== 'PENDING') {
       await pool.query('ROLLBACK');
@@ -211,12 +212,12 @@ exports.checkPaymentStatus = async (req, res) => {
   try {
     const { transaction_id } = req.params;
 
-    const result = await pool.query(
+    const [rows] = await pool.query(
       `SELECT status, coins FROM recharge_orders WHERE id = $1 AND user_id = $2`,
       [transaction_id, req.user.id]
     );
 
-    if (result.rows.length === 0) {
+    if (rows.length === 0) {
       return res.status(404).json({ status: 'error', message: 'Transaction not found' });
     }
 
@@ -224,8 +225,8 @@ exports.checkPaymentStatus = async (req, res) => {
       status: 'success',
       data: {
         transaction_id: transaction_id,
-        payment_status: result.rows[0].status,
-        coins_added: result.rows[0].status === 'SUCCESS' ? result.rows[0].coins : 0
+        payment_status: rows[0].status,
+        coins_added: rows[0].status === 'SUCCESS' ? rows[0].coins : 0
       }
     });
   } catch (error) {
