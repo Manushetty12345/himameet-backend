@@ -26,8 +26,10 @@ exports.getBalance = async (req, res) => {
  */
 exports.getPackages = async (req, res) => {
   try {
-    const [rows] = await pool.query(`SELECT id, coins, price AS price_inr, discount_percent AS discount_percentage, is_welcome_offer FROM coin_packages WHERE is_active = true`);
-    
+    const [rows] = await pool.query(
+      `SELECT id, coins, price AS price_inr, discount_percent AS discount_percentage, is_welcome_offer FROM coin_packages WHERE is_active = true ORDER BY price ASC`
+    );
+
     res.status(200).json({
       status: 'success',
       data: rows
@@ -42,7 +44,6 @@ exports.getPackages = async (req, res) => {
  * 5.2 Initiate Recharge (PhonePe)
  */
 exports.initiateRecharge = async (req, res) => {
-  const connection = await pool.getConnection();
   try {
     const userId = req.user.id;
     const { package_id } = req.body;
@@ -51,7 +52,7 @@ exports.initiateRecharge = async (req, res) => {
       return res.status(400).json({ status: 'error', message: 'package_id is required' });
     }
 
-    const [pkgRows] = await connection.query(`SELECT price, coins FROM coin_packages WHERE id = $1`, [package_id]);
+    const [pkgRows] = await pool.query(`SELECT price, coins FROM coin_packages WHERE id = $1`, [package_id]);
     if (pkgRows.length === 0) {
       return res.status(404).json({ status: 'error', message: 'Package not found' });
     }
@@ -76,7 +77,7 @@ exports.initiateRecharge = async (req, res) => {
     const sha256Hash = crypto.createHash('sha256').update(stringToHash).digest('hex');
     const checksum = sha256Hash + '###' + PHONEPE_SALT_INDEX;
 
-    await connection.query(
+    await pool.query(
       `INSERT INTO recharge_orders (id, user_id, package_id, amount, coins, status) VALUES ($1, $2, $3, $4, $5, 'PENDING')`,
       [merchantTransactionId, userId, package_id, pkg.price, pkg.coins]
     );
@@ -94,8 +95,6 @@ exports.initiateRecharge = async (req, res) => {
   } catch (error) {
     console.error('Error initiating recharge:', error);
     res.status(500).json({ status: 'error', message: 'Internal Server Error' });
-  } finally {
-    connection.release();
   }
 };
 
@@ -103,10 +102,9 @@ exports.initiateRecharge = async (req, res) => {
  * 5.3 PhonePe Webhook (Server-to-Server)
  */
 exports.phonepeWebhook = async (req, res) => {
-  const connection = await pool.getConnection();
   try {
     const { response } = req.body;
-    
+
     if (!response) {
       return res.status(400).send('Invalid request');
     }
@@ -118,48 +116,48 @@ exports.phonepeWebhook = async (req, res) => {
     const paymentStatus = responseData.code;
     const phonepeTxnId = responseData.data.transactionId;
 
-    await connection.beginTransaction();
+    // Use PostgreSQL transaction
+    await pool.query('BEGIN');
 
-    // PostgreSQL uses SELECT ... FOR UPDATE
-    const [orders] = await connection.query(`SELECT * FROM recharge_orders WHERE id = $1 FOR UPDATE`, [merchantTransactionId]);
-    
+    const [orders] = await pool.query(
+      `SELECT * FROM recharge_orders WHERE id = $1 FOR UPDATE`,
+      [merchantTransactionId]
+    );
+
     if (orders.length === 0) {
-      await connection.rollback();
+      await pool.query('ROLLBACK');
       return res.status(404).send('Order not found');
     }
     const order = orders[0];
 
     if (order.status !== 'PENDING') {
-      await connection.rollback();
+      await pool.query('ROLLBACK');
       return res.status(200).send('Already processed');
     }
 
     if (paymentStatus === 'PAYMENT_SUCCESS') {
-      await connection.query(`UPDATE recharge_orders SET status = 'SUCCESS' WHERE id = $1`, [merchantTransactionId]);
+      await pool.query(`UPDATE recharge_orders SET status = 'SUCCESS' WHERE id = $1`, [merchantTransactionId]);
 
-      await connection.query(
+      await pool.query(
         `INSERT INTO coin_transactions (user_id, type, coins, amount_paid, payment_id) VALUES ($1, 'purchase', $2, $3, $4)`,
         [order.user_id, order.coins, order.amount, phonepeTxnId]
       );
 
-      // PostgreSQL uses ON CONFLICT instead of ON DUPLICATE KEY UPDATE
-      await connection.query(
-        `INSERT INTO wallets (user_id, coin_balance) VALUES ($1, $2) 
-         ON CONFLICT (user_id) DO UPDATE SET coin_balance = wallets.coin_balance + $3`,
-        [order.user_id, order.coins, order.coins]
+      await pool.query(
+        `INSERT INTO wallets (user_id, coin_balance) VALUES ($1, $2)
+         ON CONFLICT (user_id) DO UPDATE SET coin_balance = wallets.coin_balance + $2`,
+        [order.user_id, order.coins]
       );
     } else {
-      await connection.query(`UPDATE recharge_orders SET status = 'FAILED' WHERE id = $1`, [merchantTransactionId]);
+      await pool.query(`UPDATE recharge_orders SET status = 'FAILED' WHERE id = $1`, [merchantTransactionId]);
     }
 
-    await connection.commit();
+    await pool.query('COMMIT');
     res.status(200).send('OK');
   } catch (error) {
-    await connection.rollback();
+    await pool.query('ROLLBACK').catch(() => {});
     console.error('Webhook error:', error);
     res.status(500).send('Internal Server Error');
-  } finally {
-    connection.release();
   }
 };
 
@@ -170,7 +168,10 @@ exports.checkPaymentStatus = async (req, res) => {
   try {
     const { transaction_id } = req.params;
 
-    const [rows] = await pool.query(`SELECT status, coins FROM recharge_orders WHERE id = $1 AND user_id = $2`, [transaction_id, req.user.id]);
+    const [rows] = await pool.query(
+      `SELECT status, coins FROM recharge_orders WHERE id = $1 AND user_id = $2`,
+      [transaction_id, req.user.id]
+    );
 
     if (rows.length === 0) {
       return res.status(404).json({ status: 'error', message: 'Transaction not found' });
