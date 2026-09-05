@@ -7,6 +7,21 @@ const PHONEPE_SALT_INDEX = process.env.PHONEPE_SALT_INDEX || '1';
 const PHONEPE_MERCHANT_ID = process.env.PHONEPE_MERCHANT_ID || 'M123456789';
 
 /**
+ * 5.0 Get Wallet Balance
+ */
+exports.getBalance = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const [rows] = await pool.query(`SELECT coin_balance FROM wallets WHERE user_id = $1`, [userId]);
+    const balance = rows.length > 0 ? parseFloat(rows[0].coin_balance) : 0;
+    res.status(200).json({ status: 'success', data: { coin_balance: balance } });
+  } catch (error) {
+    console.error('Error fetching balance:', error);
+    res.status(500).json({ status: 'error', message: 'Internal Server Error' });
+  }
+};
+
+/**
  * 5.1 Get Coin Packages
  */
 exports.getPackages = async (req, res) => {

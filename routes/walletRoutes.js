@@ -3,6 +3,9 @@ const router = express.Router();
 const walletController = require('../controllers/walletController');
 const { protect } = require('../middleware/authMiddleware');
 
+// 5.0 Get Wallet Balance
+router.get('/balance', protect, walletController.getBalance);
+
 // 5.1 Get Coin Packages
 router.get('/packages', protect, walletController.getPackages);
 
