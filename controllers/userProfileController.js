@@ -231,3 +231,20 @@ exports.getNotifications = (req, res) => {
     ]
   });
 };
+
+/**
+ * 10.11 Get Delete Reasons
+ */
+exports.getDeleteReasons = (req, res) => {
+  res.status(200).json({
+    status: 'success',
+    data: [
+      { id: 1, reason: "Not able to here HI ma" },
+      { id: 2, reason: "Abusive language" },
+      { id: 3, reason: "Hi ma not polite" },
+      { id: 4, reason: "Hi ma not interested" },
+      { id: 5, reason: "Ask for money" },
+      { id: 6, reason: "Other" }
+    ]
+  });
+};
