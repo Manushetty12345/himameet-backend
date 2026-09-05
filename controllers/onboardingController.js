@@ -108,7 +108,10 @@ exports.saveProfileSetup = async (req, res) => {
       }
     }
 
-    const referral_code = 'HIMA' + uuidv4().split('-')[0].toUpperCase();
+    // Generate a unique invite code: HM + 4 digits + 4 uppercase letters
+    const digits = Math.floor(1000 + Math.random() * 9000).toString();
+    const letters = uuidv4().replace(/-/g, '').slice(0, 4).toUpperCase();
+    const referral_code = 'HM' + digits + letters;
     const fullName = 'User ' + temp_phone.slice(-4);
 
     // Ensure referred_by column exists (safe migration)
