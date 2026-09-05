@@ -252,7 +252,7 @@ exports.checkPaymentStatus = async (req, res) => {
  */
 exports.phonepeRedirect = async (req, res) => {
   try {
-    const transactionId = req.body.transactionId || req.query.transactionId;
+    const transactionId = req.body?.transactionId || req.query?.transactionId;
 
     if (!transactionId) {
       return res.redirect('himaapp://payment/failure');
