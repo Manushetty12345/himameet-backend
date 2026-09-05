@@ -15,8 +15,8 @@ const APP_BASE_URL = process.env.APP_BASE_URL || 'https://himameet-backend.onren
 exports.getBalance = async (req, res) => {
   try {
     const userId = req.user.id;
-    const [rows] = await pool.query(`SELECT coin_balance FROM wallets WHERE user_id = $1`, [userId]);
-    const balance = rows.length > 0 ? parseFloat(rows[0].coin_balance) : 0;
+    const result = await pool.query(`SELECT coin_balance FROM wallets WHERE user_id = $1`, [userId]);
+    const balance = result.rows.length > 0 ? parseFloat(result.rows[0].coin_balance) : 0;
     res.status(200).json({ status: 'success', data: { coin_balance: balance } });
   } catch (error) {
     console.error('Error fetching balance:', error);
@@ -29,14 +29,10 @@ exports.getBalance = async (req, res) => {
  */
 exports.getPackages = async (req, res) => {
   try {
-    const [rows] = await pool.query(
+    const result = await pool.query(
       `SELECT id, coins, price AS price_inr, discount_percent AS discount_percentage, is_welcome_offer FROM coin_packages WHERE is_active = true ORDER BY price ASC`
     );
-
-    res.status(200).json({
-      status: 'success',
-      data: rows
-    });
+    res.status(200).json({ status: 'success', data: result.rows });
   } catch (error) {
     console.error('Error fetching packages:', error);
     res.status(500).json({ status: 'error', message: 'Internal Server Error' });
@@ -55,11 +51,14 @@ exports.initiateRecharge = async (req, res) => {
       return res.status(400).json({ status: 'error', message: 'package_id is required' });
     }
 
-    const [pkgRows] = await pool.query(`SELECT price, coins FROM coin_packages WHERE id = $1`, [package_id]);
-    if (pkgRows.length === 0) {
+    const pkgResult = await pool.query(
+      `SELECT price, coins FROM coin_packages WHERE id = $1`,
+      [package_id]
+    );
+    if (pkgResult.rows.length === 0) {
       return res.status(404).json({ status: 'error', message: 'Package not found' });
     }
-    const pkg = pkgRows[0];
+    const pkg = pkgResult.rows[0];
     const amountInPaise = Math.round(parseFloat(pkg.price) * 100);
 
     const merchantTransactionId = 'TXN_' + uuidv4().replace(/-/g, '').substring(0, 15).toUpperCase();
@@ -103,9 +102,9 @@ exports.initiateRecharge = async (req, res) => {
       return res.status(502).json({ status: 'error', message: 'Failed to get payment URL from PhonePe' });
     }
 
-    // Save the pending order
-    await pool.query(
-      `CREATE TABLE IF NOT EXISTS recharge_orders (
+    // Ensure recharge_orders table exists
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS recharge_orders (
         id TEXT PRIMARY KEY,
         user_id INTEGER,
         package_id INTEGER,
@@ -113,11 +112,12 @@ exports.initiateRecharge = async (req, res) => {
         coins INTEGER,
         status TEXT DEFAULT 'PENDING',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )`
-    );
+      )
+    `);
+
     await pool.query(
-      `INSERT INTO recharge_orders (id, user_id, package_id, amount, coins, status) VALUES ($1, $2, $3, $4, $5, 'PENDING')
-       ON CONFLICT (id) DO NOTHING`,
+      `INSERT INTO recharge_orders (id, user_id, package_id, amount, coins, status)
+       VALUES ($1, $2, $3, $4, $5, 'PENDING') ON CONFLICT (id) DO NOTHING`,
       [merchantTransactionId, userId, package_id, pkg.price, pkg.coins]
     );
 
@@ -155,19 +155,18 @@ exports.phonepeWebhook = async (req, res) => {
     const paymentStatus = responseData.code;
     const phonepeTxnId = responseData.data.transactionId;
 
-    // Use PostgreSQL transaction
     await pool.query('BEGIN');
 
-    const [orders] = await pool.query(
+    const orderResult = await pool.query(
       `SELECT * FROM recharge_orders WHERE id = $1 FOR UPDATE`,
       [merchantTransactionId]
     );
 
-    if (orders.length === 0) {
+    if (orderResult.rows.length === 0) {
       await pool.query('ROLLBACK');
       return res.status(404).send('Order not found');
     }
-    const order = orders[0];
+    const order = orderResult.rows[0];
 
     if (order.status !== 'PENDING') {
       await pool.query('ROLLBACK');
@@ -175,20 +174,25 @@ exports.phonepeWebhook = async (req, res) => {
     }
 
     if (paymentStatus === 'PAYMENT_SUCCESS') {
-      await pool.query(`UPDATE recharge_orders SET status = 'SUCCESS' WHERE id = $1`, [merchantTransactionId]);
-
       await pool.query(
-        `INSERT INTO coin_transactions (user_id, type, coins, amount_paid, payment_id) VALUES ($1, 'purchase', $2, $3, $4)`,
+        `UPDATE recharge_orders SET status = 'SUCCESS' WHERE id = $1`,
+        [merchantTransactionId]
+      );
+      await pool.query(
+        `INSERT INTO coin_transactions (user_id, type, coins, amount_paid, payment_id)
+         VALUES ($1, 'purchase', $2, $3, $4)`,
         [order.user_id, order.coins, order.amount, phonepeTxnId]
       );
-
       await pool.query(
         `INSERT INTO wallets (user_id, coin_balance) VALUES ($1, $2)
          ON CONFLICT (user_id) DO UPDATE SET coin_balance = wallets.coin_balance + $2`,
         [order.user_id, order.coins]
       );
     } else {
-      await pool.query(`UPDATE recharge_orders SET status = 'FAILED' WHERE id = $1`, [merchantTransactionId]);
+      await pool.query(
+        `UPDATE recharge_orders SET status = 'FAILED' WHERE id = $1`,
+        [merchantTransactionId]
+      );
     }
 
     await pool.query('COMMIT');
@@ -207,12 +211,12 @@ exports.checkPaymentStatus = async (req, res) => {
   try {
     const { transaction_id } = req.params;
 
-    const [rows] = await pool.query(
+    const result = await pool.query(
       `SELECT status, coins FROM recharge_orders WHERE id = $1 AND user_id = $2`,
       [transaction_id, req.user.id]
     );
 
-    if (rows.length === 0) {
+    if (result.rows.length === 0) {
       return res.status(404).json({ status: 'error', message: 'Transaction not found' });
     }
 
@@ -220,8 +224,8 @@ exports.checkPaymentStatus = async (req, res) => {
       status: 'success',
       data: {
         transaction_id: transaction_id,
-        payment_status: rows[0].status,
-        coins_added: rows[0].status === 'SUCCESS' ? rows[0].coins : 0
+        payment_status: result.rows[0].status,
+        coins_added: result.rows[0].status === 'SUCCESS' ? result.rows[0].coins : 0
       }
     });
   } catch (error) {
