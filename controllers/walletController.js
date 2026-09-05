@@ -48,18 +48,32 @@ exports.initiateRecharge = async (req, res) => {
     const userId = req.user.id;
     const { package_id } = req.body;
 
-    if (!package_id) {
-      return res.status(400).json({ status: 'error', message: 'package_id is required' });
+    const { package_id, coins: inlineCoins, price: inlinePrice } = req.body;
+
+    if (!package_id && (!inlineCoins || !inlinePrice)) {
+      return res.status(400).json({ status: 'error', message: 'package_id or coins+price is required' });
     }
 
-    const [pkgRows] = await pool.query(
-      `SELECT price, coins FROM coin_packages WHERE id = $1`,
-      [package_id]
-    );
-    if (pkgRows.length === 0) {
-      return res.status(404).json({ status: 'error', message: 'Package not found' });
+    let pkg;
+
+    if (package_id) {
+      const [pkgRows] = await pool.query(
+        `SELECT price, coins FROM coin_packages WHERE id = $1`,
+        [package_id]
+      );
+      if (pkgRows.length > 0) {
+        pkg = pkgRows[0];
+      }
     }
-    const pkg = pkgRows[0];
+
+    // Fallback: use inline price + coins sent by frontend (fallback packages)
+    if (!pkg) {
+      const { coins, price } = req.body;
+      if (!coins || !price) {
+        return res.status(400).json({ status: 'error', message: 'Package not found and no coins/price provided' });
+      }
+      pkg = { coins: parseInt(coins, 10), price: parseFloat(price) };
+    }
     const amountInPaise = Math.round(parseFloat(pkg.price) * 100);
 
     const merchantTransactionId = 'TXN_' + uuidv4().replace(/-/g, '').substring(0, 15).toUpperCase();
