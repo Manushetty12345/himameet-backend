@@ -202,6 +202,25 @@ exports.getTrackedCreators = async (req, res) => {
 exports.deleteAccount = async (req, res) => {
   try {
     const userId = req.user.id;
+    const { reason_id, other_reason } = req.body;
+    
+    // Create table if not exists (for saving deletion reasons dynamically)
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS account_deletion_requests (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id),
+        reason_id INTEGER,
+        other_reason TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Insert the reason
+    await pool.query(
+      `INSERT INTO account_deletion_requests (user_id, reason_id, other_reason) VALUES ($1, $2, $3)`,
+      [userId, reason_id, other_reason || null]
+    );
+
     await pool.query(`UPDATE users SET account_status = 'pending_deletion' WHERE id = $1`, [userId]);
 
     res.status(200).json({
