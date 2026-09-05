@@ -217,7 +217,7 @@ exports.checkSession = async (req, res) => {
       // If it has id, it's a full token
       if (decoded.id) {
         const [rows] = await pool.query(
-          `SELECT id, user_role, full_name, phone_number, profile_setup_complete FROM users WHERE id = $1`,
+          `SELECT id, user_role, full_name, phone_number FROM users WHERE id = $1`,
           [decoded.id]
         );
         
