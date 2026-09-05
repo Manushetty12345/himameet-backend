@@ -79,7 +79,7 @@ exports.getInterests = async (req, res) => {
 exports.saveProfileSetup = async (req, res) => {
   try {
     const { temp_phone, temp_country_code } = req.user;
-    const { gender, avatar_id, language_id } = req.body;
+    const { gender, avatar_id, language_id, referral_code_used } = req.body;
 
     if (!temp_phone) {
       return res.status(401).json({ status: 'error', message: 'Invalid temporary token. Phone number missing.' });
@@ -97,16 +97,48 @@ exports.saveProfileSetup = async (req, res) => {
       return res.status(400).json({ status: 'error', message: 'User already completed profile' });
     }
 
+    // Lookup referrer if a code was provided
+    let referrerId = null;
+    if (referral_code_used) {
+      const [referrerRows] = await pool.query(
+        `SELECT id FROM users WHERE referral_code = $1`, [referral_code_used.trim().toUpperCase()]
+      );
+      if (referrerRows.length > 0) {
+        referrerId = referrerRows[0].id;
+      }
+    }
+
     const referral_code = 'HIMA' + uuidv4().split('-')[0].toUpperCase();
     const fullName = 'User ' + temp_phone.slice(-4);
 
+    // Ensure referred_by column exists (safe migration)
+    await pool.query(`
+      DO $$ BEGIN
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='referred_by') THEN
+          ALTER TABLE users ADD COLUMN referred_by INTEGER REFERENCES users(id);
+        END IF;
+      END $$;
+    `);
+
     const [result] = await pool.query(
-      `INSERT INTO users (phone_number, country_code, full_name, user_role, gender, avatar_id, language_id, referral_code, is_verified) 
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id`,
-      [temp_phone, temp_country_code || '+91', fullName, 'male', gender, avatar_id, language_id, referral_code, true]
+      `INSERT INTO users (phone_number, country_code, full_name, user_role, gender, avatar_id, language_id, referral_code, referred_by, is_verified) 
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id`,
+      [temp_phone, temp_country_code || '+91', fullName, 'male', gender, avatar_id, language_id, referral_code, referrerId, true]
     );
 
     const newUserId = result[0].id;
+
+    // Award coins to referrer
+    if (referrerId) {
+      await pool.query(
+        `UPDATE wallets SET coin_balance = coin_balance + 40 WHERE user_id = $1`,
+        [referrerId]
+      );
+      await pool.query(
+        `INSERT INTO coin_transactions (user_id, type, coins, amount_paid, notes) VALUES ($1, 'referral_bonus', 40, 0, $2)`,
+        [referrerId, `Referral bonus for inviting user ${newUserId}`]
+      );
+    }
 
     const token = jwt.sign({ id: newUserId, role: 'male' }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
 

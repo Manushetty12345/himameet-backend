@@ -107,17 +107,42 @@ exports.getTransactions = async (req, res) => {
 /**
  * 10.4 Get Referral Stats (Dummy)
  */
-exports.getReferralStats = (req, res) => {
-  res.status(200).json({
-    status: 'success',
-    data: {
-      invite_code: "HIMA" + req.user.id + "X",
-      total_invites: 0,
-      coins_per_invite: 40,
-      total_coins_earned: 0,
-      share_message: "Join me on Hi ma and get free coins! Use code: HIMA" + req.user.id + "X"
+exports.getReferralStats = async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    // Get this user's referral code
+    const [userRows] = await pool.query(
+      `SELECT referral_code FROM users WHERE id = $1`, [userId]
+    );
+    if (!userRows.length) {
+      return res.status(404).json({ status: 'error', message: 'User not found' });
     }
-  });
+    const invite_code = userRows[0].referral_code;
+
+    // Count how many users signed up using this user's referral code
+    const [referralRows] = await pool.query(
+      `SELECT COUNT(*) AS total_invites FROM users WHERE referred_by = $1`, [userId]
+    );
+    const total_invites = parseInt(referralRows[0].total_invites || '0', 10);
+
+    const coins_per_invite = 40;
+    const total_coins_earned = total_invites * coins_per_invite;
+
+    res.status(200).json({
+      status: 'success',
+      data: {
+        invite_code,
+        total_invites,
+        coins_per_invite,
+        total_coins_earned,
+        share_message: `Join Hima App and make real friends! ❤️\nUse my code ${invite_code} to sign up.\n\nDownload now: https://play.google.com/store/apps/details?id=com.gmwapp.hima`
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching referral stats:', error);
+    res.status(500).json({ status: 'error', message: 'Internal Server Error' });
+  }
 };
 
 /**
