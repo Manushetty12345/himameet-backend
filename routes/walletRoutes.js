@@ -25,5 +25,8 @@ router.get('/recharge/status/:transaction_id', protect, walletController.checkPa
 router.post('/recharge/redirect', walletController.phonepeRedirect);
 router.get('/recharge/redirect', walletController.phonepeRedirect);
 
+// 5.6 Verify Recharge Payment (called by frontend after WebView)
+router.post('/recharge/verify', protect, walletController.verifyRechargePayment);
+
 module.exports = router;
 

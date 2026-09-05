@@ -248,73 +248,99 @@ exports.checkPaymentStatus = async (req, res) => {
 };
 
 /**
- * 5.5 PhonePe Redirect (Callback)
+ * 5.5 PhonePe Redirect (Callback) — just navigates app back, verification done by frontend
  */
 exports.phonepeRedirect = async (req, res) => {
-  try {
-    const transactionId = req.body?.transactionId || req.query?.transactionId;
+  const transactionId = req.body?.transactionId || req.query?.transactionId;
+  // Simply redirect back to app — frontend will call verifyRechargePayment
+  res.redirect(`himaapp://payment/verify?txn=${transactionId || ''}`);
+};
 
-    if (!transactionId) {
-      return res.redirect('himaapp://payment/failure');
+/**
+ * 5.6 Verify Recharge Payment (called by frontend after WebView closes)
+ */
+exports.verifyRechargePayment = async (req, res) => {
+  try {
+    const { merchant_transaction_id } = req.body;
+    const userId = req.user.id;
+
+    if (!merchant_transaction_id) {
+      return res.status(400).json({ status: 'error', message: 'merchant_transaction_id is required' });
     }
 
-    // Call PhonePe status API to verify actual payment result
-    const statusPath = `/pg/v1/status/${PHONEPE_MERCHANT_ID}/${transactionId}`;
-    const stringToHash = statusPath + PHONEPE_SALT_KEY;
-    const sha256Hash = crypto.createHash('sha256').update(stringToHash).digest('hex');
-    const xVerify = sha256Hash + '###' + PHONEPE_SALT_INDEX;
+    // Find order
+    const [orders] = await pool.query(
+      `SELECT * FROM recharge_orders WHERE id = $1 AND user_id = $2`,
+      [merchant_transaction_id, userId]
+    );
+    if (orders.length === 0) {
+      return res.status(404).json({ status: 'error', message: 'Order not found' });
+    }
+    const order = orders[0];
+
+    // Already completed — return success immediately (idempotent)
+    if (order.status === 'SUCCESS') {
+      const [walletRows] = await pool.query(`SELECT coin_balance FROM wallets WHERE user_id = $1`, [userId]);
+      return res.status(200).json({
+        status: 'success',
+        data: { success: true, coins_added: order.coins, new_balance: walletRows.length > 0 ? parseFloat(walletRows[0].coin_balance) : 0 }
+      });
+    }
+
+    // Already failed
+    if (order.status === 'FAILED') {
+      return res.status(200).json({ status: 'success', data: { success: false, coins_added: 0 } });
+    }
+
+    // PENDING — ask PhonePe for real status
+    const statusPath = `/pg/v1/status/${PHONEPE_MERCHANT_ID}/${merchant_transaction_id}`;
+    const xVerify = crypto.createHash('sha256').update(statusPath + PHONEPE_SALT_KEY).digest('hex') + '###' + PHONEPE_SALT_INDEX;
 
     const statusResponse = await axios.get(`${PHONEPE_BASE_URL}${statusPath}`, {
-      headers: {
-        'X-VERIFY': xVerify,
-        'X-MERCHANT-ID': PHONEPE_MERCHANT_ID,
-        'Content-Type': 'application/json',
-        'accept': 'application/json',
-      }
+      headers: { 'X-VERIFY': xVerify, 'X-MERCHANT-ID': PHONEPE_MERCHANT_ID, 'Content-Type': 'application/json', 'accept': 'application/json' }
     });
 
     const statusData = statusResponse.data;
-    const paymentState = statusData?.data?.state;
-    const paymentCode = statusData?.code;
+    const isSuccess = statusData?.success === true && statusData?.code === 'PAYMENT_SUCCESS';
 
-    console.log('PhonePe redirect status check:', JSON.stringify(statusData));
+    if (!isSuccess) {
+      await pool.query(`UPDATE recharge_orders SET status = 'FAILED' WHERE id = $1`, [merchant_transaction_id]);
+      return res.status(200).json({ status: 'success', data: { success: false, coins_added: 0, message: statusData?.message || 'Payment not successful' } });
+    }
 
-    const isSuccess = paymentCode === 'PAYMENT_SUCCESS' || paymentState === 'COMPLETED';
-
-    // Update order if success
-    if (isSuccess) {
-      try {
-        const [orders] = await pool.query(
-          `SELECT * FROM recharge_orders WHERE id = $1`, [transactionId]
-        );
-        if (orders.length > 0 && orders[0].status === 'PENDING') {
-          const order = orders[0];
-          const phonepeTxnId = statusData?.data?.transactionId || transactionId;
-          await pool.query(`UPDATE recharge_orders SET status = 'SUCCESS' WHERE id = $1`, [transactionId]);
-          await pool.query(
-            `INSERT INTO coin_transactions (user_id, type, coins, amount_paid, payment_id)
-             VALUES ($1, 'purchase', $2, $3, $4)
-             ON CONFLICT DO NOTHING`,
-            [order.user_id, order.coins, order.amount, phonepeTxnId]
-          );
-          await pool.query(
-            `INSERT INTO wallets (user_id, coin_balance) VALUES ($1, $2)
-             ON CONFLICT (user_id) DO UPDATE SET coin_balance = wallets.coin_balance + $2`,
-            [order.user_id, order.coins]
-          );
-        }
-      } catch (dbErr) {
-        console.error('DB update error in redirect:', dbErr.message);
+    // Credit coins atomically (with FOR UPDATE lock to prevent double-credit)
+    const phonepeTxnId = statusData?.data?.transactionId || merchant_transaction_id;
+    await pool.query('BEGIN');
+    try {
+      const [locked] = await pool.query(`SELECT status FROM recharge_orders WHERE id = $1 FOR UPDATE`, [merchant_transaction_id]);
+      if (locked[0].status === 'SUCCESS') {
+        await pool.query('COMMIT');
+        const [walletRows] = await pool.query(`SELECT coin_balance FROM wallets WHERE user_id = $1`, [userId]);
+        return res.status(200).json({ status: 'success', data: { success: true, coins_added: order.coins, new_balance: walletRows.length > 0 ? parseFloat(walletRows[0].coin_balance) : 0 } });
       }
+      await pool.query(`UPDATE recharge_orders SET status = 'SUCCESS' WHERE id = $1`, [merchant_transaction_id]);
+      await pool.query(
+        `INSERT INTO coin_transactions (user_id, type, coins, amount_paid, payment_id) VALUES ($1, 'purchase', $2, $3, $4) ON CONFLICT DO NOTHING`,
+        [order.user_id, order.coins, order.amount, phonepeTxnId]
+      );
+      await pool.query(
+        `INSERT INTO wallets (user_id, coin_balance) VALUES ($1, $2) ON CONFLICT (user_id) DO UPDATE SET coin_balance = wallets.coin_balance + $2`,
+        [order.user_id, order.coins]
+      );
+      await pool.query('COMMIT');
+    } catch (txErr) {
+      await pool.query('ROLLBACK').catch(() => {});
+      throw txErr;
     }
 
-    if (isSuccess) {
-      res.redirect('himaapp://payment/success?txn=' + transactionId);
-    } else {
-      res.redirect('himaapp://payment/failure?txn=' + transactionId);
-    }
+    const [walletRows] = await pool.query(`SELECT coin_balance FROM wallets WHERE user_id = $1`, [userId]);
+    return res.status(200).json({
+      status: 'success',
+      data: { success: true, coins_added: order.coins, new_balance: walletRows.length > 0 ? parseFloat(walletRows[0].coin_balance) : 0 }
+    });
+
   } catch (error) {
-    console.error('Redirect error:', error?.response?.data || error.message);
-    res.redirect('himaapp://payment/failure');
+    console.error('Error verifying payment:', error?.response?.data || error.message);
+    res.status(500).json({ status: 'error', message: 'Internal Server Error' });
   }
 };
