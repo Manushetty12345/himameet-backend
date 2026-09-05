@@ -46,8 +46,6 @@ exports.getPackages = async (req, res) => {
 exports.initiateRecharge = async (req, res) => {
   try {
     const userId = req.user.id;
-    const { package_id } = req.body;
-
     const { package_id, coins: inlineCoins, price: inlinePrice } = req.body;
 
     if (!package_id && (!inlineCoins || !inlinePrice)) {
