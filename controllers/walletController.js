@@ -1,10 +1,13 @@
 const pool = require('../db');
 const crypto = require('crypto');
 const { v4: uuidv4 } = require('uuid');
+const axios = require('axios');
 
-const PHONEPE_SALT_KEY = process.env.PHONEPE_SALT_KEY || 'test-salt-key';
+const PHONEPE_SALT_KEY = process.env.PHONEPE_SALT_KEY || '96434309-7796-489d-8924-ab56988a6076';
 const PHONEPE_SALT_INDEX = process.env.PHONEPE_SALT_INDEX || '1';
-const PHONEPE_MERCHANT_ID = process.env.PHONEPE_MERCHANT_ID || 'M123456789';
+const PHONEPE_MERCHANT_ID = process.env.PHONEPE_MERCHANT_ID || 'PGTESTPAYUAT86';
+const PHONEPE_BASE_URL = process.env.PHONEPE_BASE_URL || 'https://api-preprod.phonepe.com/apis/hermes';
+const APP_BASE_URL = process.env.APP_BASE_URL || 'https://himameet-backend.onrender.com';
 
 /**
  * 5.0 Get Wallet Balance
@@ -57,7 +60,7 @@ exports.initiateRecharge = async (req, res) => {
       return res.status(404).json({ status: 'error', message: 'Package not found' });
     }
     const pkg = pkgRows[0];
-    const amountInPaise = Math.round(pkg.price * 100);
+    const amountInPaise = Math.round(parseFloat(pkg.price) * 100);
 
     const merchantTransactionId = 'TXN_' + uuidv4().replace(/-/g, '').substring(0, 15).toUpperCase();
 
@@ -66,9 +69,10 @@ exports.initiateRecharge = async (req, res) => {
       merchantTransactionId: merchantTransactionId,
       merchantUserId: 'U' + userId,
       amount: amountInPaise,
-      redirectUrl: 'himaapp://payment/success',
+      redirectUrl: `${APP_BASE_URL}/api/wallet/recharge/redirect?transactionId=${merchantTransactionId}`,
       redirectMode: 'REDIRECT',
-      callbackUrl: `${process.env.APP_BASE_URL || 'http://localhost:5000'}/api/wallet/recharge/webhook`,
+      callbackUrl: `${APP_BASE_URL}/api/wallet/recharge/webhook`,
+      mobileNumber: '9999999999',
       paymentInstrument: { type: 'PAY_PAGE' }
     };
 
@@ -77,23 +81,58 @@ exports.initiateRecharge = async (req, res) => {
     const sha256Hash = crypto.createHash('sha256').update(stringToHash).digest('hex');
     const checksum = sha256Hash + '###' + PHONEPE_SALT_INDEX;
 
+    // Call PhonePe API
+    const phonepeResponse = await axios.post(
+      `${PHONEPE_BASE_URL}/pg/v1/pay`,
+      { request: base64Payload },
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          'X-VERIFY': checksum,
+          'X-MERCHANT-ID': PHONEPE_MERCHANT_ID,
+          'accept': 'application/json',
+        },
+      }
+    );
+
+    const phonepeData = phonepeResponse.data;
+    const paymentUrl = phonepeData?.data?.instrumentResponse?.redirectInfo?.url;
+
+    if (!paymentUrl) {
+      console.error('PhonePe response:', JSON.stringify(phonepeData));
+      return res.status(502).json({ status: 'error', message: 'Failed to get payment URL from PhonePe' });
+    }
+
+    // Save the pending order
     await pool.query(
-      `INSERT INTO recharge_orders (id, user_id, package_id, amount, coins, status) VALUES ($1, $2, $3, $4, $5, 'PENDING')`,
+      `CREATE TABLE IF NOT EXISTS recharge_orders (
+        id TEXT PRIMARY KEY,
+        user_id INTEGER,
+        package_id INTEGER,
+        amount NUMERIC,
+        coins INTEGER,
+        status TEXT DEFAULT 'PENDING',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )`
+    );
+    await pool.query(
+      `INSERT INTO recharge_orders (id, user_id, package_id, amount, coins, status) VALUES ($1, $2, $3, $4, $5, 'PENDING')
+       ON CONFLICT (id) DO NOTHING`,
       [merchantTransactionId, userId, package_id, pkg.price, pkg.coins]
     );
 
     res.status(200).json({
       status: 'success',
       data: {
-        merchant_id: PHONEPE_MERCHANT_ID,
         merchant_transaction_id: merchantTransactionId,
-        base64_payload: base64Payload,
-        checksum: checksum
+        payment_url: paymentUrl,
+        coins: pkg.coins,
+        amount: pkg.price,
       }
     });
 
   } catch (error) {
-    console.error('Error initiating recharge:', error);
+    console.error('Error initiating recharge:', error?.response?.data || error.message);
     res.status(500).json({ status: 'error', message: 'Internal Server Error' });
   }
 };
