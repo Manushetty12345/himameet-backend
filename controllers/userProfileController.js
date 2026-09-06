@@ -1,4 +1,4 @@
-const pool = require('../db');
+﻿const pool = require('../db');
 
 /**
  * 10.1 Get My Profile (Settings View)
@@ -12,6 +12,8 @@ exports.getMyProfile = async (req, res) => {
         u.id AS user_id, 
         u.full_name AS username, 
         a.avatar_url, 
+        u.avatar_id,
+        u.gender,
         u.dnd_enabled,
         l.name_english AS language_name,
         l.name_native  AS language_native

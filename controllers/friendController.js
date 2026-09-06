@@ -72,6 +72,66 @@ exports.getFriends = async (req, res) => {
   }
 };
 
+exports.getFavourites = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const [rows] = await pool.query(`
+      SELECT u.id AS user_id, u.full_name AS name, a.avatar_url, 'favourite' AS status
+      FROM favourite_friends ff
+      JOIN users u ON u.id = ff.friend_id
+      LEFT JOIN avatars a ON u.avatar_id = a.id
+      WHERE ff.user_id = $1
+    `, [userId]);
+    const formattedData = rows.map(row => ({
+      ...row, avatar_url: row.avatar_url || 'https://hima-bucket.s3.amazonaws.com/default-avatar.png'
+    }));
+    res.status(200).json({ status: 'success', data: formattedData });
+  } catch (error) {
+    console.error('Error fetching favourites:', error);
+    res.status(500).json({ status: 'error', message: 'Internal Server Error' });
+  }
+};
+
+exports.getRequestsReceived = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const [rows] = await pool.query(`
+      SELECT u.id AS user_id, u.full_name AS name, a.avatar_url, 'received' AS status
+      FROM friend_requests fr
+      JOIN users u ON u.id = fr.sender_id
+      LEFT JOIN avatars a ON u.avatar_id = a.id
+      WHERE fr.receiver_id = $1
+    `, [userId]);
+    const formattedData = rows.map(row => ({
+      ...row, avatar_url: row.avatar_url || 'https://hima-bucket.s3.amazonaws.com/default-avatar.png'
+    }));
+    res.status(200).json({ status: 'success', data: formattedData });
+  } catch (error) {
+    console.error('Error fetching received requests:', error);
+    res.status(500).json({ status: 'error', message: 'Internal Server Error' });
+  }
+};
+
+exports.getRequestsSent = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const [rows] = await pool.query(`
+      SELECT u.id AS user_id, u.full_name AS name, a.avatar_url, 'sent' AS status
+      FROM friend_requests fr
+      JOIN users u ON u.id = fr.receiver_id
+      LEFT JOIN avatars a ON u.avatar_id = a.id
+      WHERE fr.sender_id = $1
+    `, [userId]);
+    const formattedData = rows.map(row => ({
+      ...row, avatar_url: row.avatar_url || 'https://hima-bucket.s3.amazonaws.com/default-avatar.png'
+    }));
+    res.status(200).json({ status: 'success', data: formattedData });
+  } catch (error) {
+    console.error('Error fetching sent requests:', error);
+    res.status(500).json({ status: 'error', message: 'Internal Server Error' });
+  }
+};
+
 /**
  * 7.3 Toggle Favourite
  */

@@ -8,6 +8,9 @@ router.post('/request', protect, friendController.sendRequest);
 
 // 7.2 Get Friends Lists
 router.get('/list', protect, friendController.getFriends);
+router.get('/favourites', protect, friendController.getFavourites);
+router.get('/requests/received', protect, friendController.getRequestsReceived);
+router.get('/requests/sent', protect, friendController.getRequestsSent);
 
 // 7.3 Toggle Favourite
 router.post('/:friend_id/favourite', protect, friendController.toggleFavourite);
