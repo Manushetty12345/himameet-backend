@@ -33,7 +33,7 @@ router.get('/seed-tamil-female', async (req, res) => {
     const interests = ['Music', 'Cooking', 'Politics', 'Art'];
     for (let i = 0; i < interests.length; i++) {
       await client.query(
-        "INSERT INTO tags (name, tag_type, is_active, display_order) SELECT $1, 'interest', true, $2 WHERE NOT EXISTS (SELECT 1 FROM tags WHERE name = $1 AND tag_type = 'interest')",
+        "INSERT INTO tags (name, tag_type, is_active, display_order) SELECT $1::text, 'interest', true, $2 WHERE NOT EXISTS (SELECT 1 FROM tags WHERE name = $1::text AND tag_type = 'interest')",
         [interests[i], i + 1]
       );
     }
