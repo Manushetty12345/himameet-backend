@@ -1,21 +1,49 @@
-const pool = require('../db');
+﻿const pool = require('../db');
 
 /**
  * 4.1 Get Home Feed (Creator List)
+ * - Filters by the calling user's language (must match)
+ * - Optionally filters by interest tag name via ?filter=<tag_name>
  */
 exports.getCreators = async (req, res) => {
   try {
+    const userId = req.user.id;
     const filter = req.query.filter;
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 20;
     const offset = (page - 1) * limit;
 
-    const queryParams = [];
-    let paramIndex = 1;
-    let whereClauses = [`u.user_role = 'creator'`];
+    const queryParams = [userId];
+    let paramIndex = 2;
 
-    let query = `
-      SELECT 
+    // Base WHERE: only show creators, match language of calling user
+    let whereClauses = [
+      `u.user_role = 'creator'`,
+      `u.language_id = (SELECT language_id FROM users WHERE id = $1)`
+    ];
+
+    let joinClauses = `
+      LEFT JOIN avatars a ON u.avatar_id = a.id
+      LEFT JOIN creator_settings cs ON u.id = cs.user_id
+    `;
+
+    // Optional interest filter
+    if (filter && filter !== 'all' && filter !== 'new') {
+      joinClauses += `
+        INNER JOIN user_tags ut ON u.id = ut.user_id
+        INNER JOIN tags t ON ut.tag_id = t.id
+      `;
+      whereClauses.push(`t.name ILIKE $${paramIndex++}`);
+      queryParams.push(filter);
+    }
+
+    // 'new' filter
+    if (filter === 'new') {
+      whereClauses.push(`u.is_new_creator = true`);
+    }
+
+    const query = `
+      SELECT
         u.id AS creator_id,
         u.full_name AS name,
         a.avatar_url,
@@ -25,21 +53,12 @@ exports.getCreators = async (req, res) => {
         COALESCE(cs.video_rate_per_min, 15.00) AS video_rate,
         cs.is_available
       FROM users u
-      LEFT JOIN avatars a ON u.avatar_id = a.id
-      LEFT JOIN creator_settings cs ON u.id = cs.user_id
+      ${joinClauses}
+      WHERE ${whereClauses.join(' AND ')}
+      GROUP BY u.id, a.avatar_url, cs.voice_rate_per_min, cs.video_rate_per_min, cs.is_available
+      ORDER BY u.is_online DESC, u.created_at DESC
+      LIMIT $${paramIndex++} OFFSET $${paramIndex++}
     `;
-
-    if (filter) {
-      query += `
-        INNER JOIN user_tags ut ON u.id = ut.user_id
-        INNER JOIN tags t ON ut.tag_id = t.id
-      `;
-      whereClauses.push(`t.name = $${paramIndex++}`);
-      queryParams.push(filter);
-    }
-
-    query += ` WHERE ` + whereClauses.join(' AND ');
-    query += ` GROUP BY u.id, a.avatar_url, cs.voice_rate_per_min, cs.video_rate_per_min, cs.is_available ORDER BY u.is_online DESC, u.created_at DESC LIMIT $${paramIndex++} OFFSET $${paramIndex++}`;
     queryParams.push(limit, offset);
 
     const [rows] = await pool.query(query, queryParams);
@@ -69,10 +88,6 @@ exports.getCreators = async (req, res) => {
     res.status(500).json({ status: 'error', message: 'Internal Server Error' });
   }
 };
-
-/**
- * 4.2 Random Match
- */
 exports.randomMatch = async (req, res) => {
   try {
     const { call_type } = req.body;
