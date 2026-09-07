@@ -40,8 +40,8 @@ router.get('/seed-tamil-female', async (req, res) => {
 
     // 4. Insert female creator (Tamil)
     const userRes = await client.query(
-      `INSERT INTO users (phone_number, country_code, full_name, user_role, gender, avatar_id, language_id, is_online, is_new_creator, profile_completed)
-       VALUES ($1, '+91', 'Priya Tamil', 'creator', 'female', $2, $3, true, false, true)
+      `INSERT INTO users (phone_number, country_code, full_name, user_role, gender, avatar_id, language_id, is_online, is_new_creator)
+       VALUES ($1, '+91', 'Priya Tamil', 'creator', 'female', $2, $3, true, false)
        ON CONFLICT (phone_number) DO UPDATE SET full_name = EXCLUDED.full_name RETURNING id`,
       ['9000000099', avatarId, langId]
     );
