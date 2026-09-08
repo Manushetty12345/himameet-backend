@@ -52,25 +52,6 @@ app.use('/api/chat', chatRoutes);
 app.use('/api/call', callRoutes);
 app.use('/api/calls', callRoutes);
 
-// Temporary endpoint to accept all friend requests
-app.get('/api/accept-all', async (req, res) => {
-  try {
-    const [requests] = await pool.query('SELECT * FROM friend_requests');
-    let count = 0;
-    for (const reqObj of requests) {
-      await pool.query('DELETE FROM friend_requests WHERE sender_id = $1 AND receiver_id = $2', [reqObj.sender_id, reqObj.receiver_id]);
-      await pool.query(`
-        INSERT INTO friendships (user_one_id, user_two_id) 
-        VALUES ($1, $2)
-        ON CONFLICT DO NOTHING
-      `, [reqObj.sender_id, reqObj.receiver_id]);
-      count++;
-    }
-    res.json({ status: 'success', message: `Accepted ${count} friend requests.` });
-  } catch (e) {
-    res.status(500).json({ error: e.message });
-  }
-});
 
 // Setup WebSockets
 setupChatSocket(server);
