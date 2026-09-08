@@ -24,4 +24,10 @@ router.post('/cancel', protect, friendController.cancelRequest);
 // 7.6 Accept Friend Request
 router.post('/accept', protect, friendController.acceptRequest);
 
+// 7.7 Remove Friend
+router.post('/remove', protect, friendController.removeFriend);
+
+// 7.8 Block User
+router.post('/block', protect, friendController.blockUser);
+
 module.exports = router;

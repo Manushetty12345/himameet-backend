@@ -54,6 +54,17 @@ app.use('/api/calls', callRoutes);
 // Setup WebSockets
 setupChatSocket(server);
 
+// Initialize tables if they don't exist
+pool.query(`
+  CREATE TABLE IF NOT EXISTS blocked_users (
+    id SERIAL PRIMARY KEY,
+    blocker_id INTEGER REFERENCES users(id),
+    blocked_id INTEGER REFERENCES users(id),
+    created_at TIMESTAMP DEFAULT NOW(),
+    UNIQUE(blocker_id, blocked_id)
+  )
+`).then(() => console.log('Blocked users table verified')).catch(console.error);
+
 // Start Server
 server.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);

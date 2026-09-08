@@ -232,3 +232,57 @@ exports.acceptRequest = async (req, res) => {
     res.status(500).json({ status: 'error', message: 'Internal Server Error' });
   }
 };
+
+/**
+ * 7.7 Remove Friend (Delete Chat)
+ */
+exports.removeFriend = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { target_user_id } = req.body;
+
+    await pool.query(`
+      DELETE FROM friendships 
+      WHERE (user_one_id = $1 AND user_two_id = $2) OR (user_one_id = $2 AND user_two_id = $1)
+    `, [userId, target_user_id]);
+
+    res.status(200).json({ status: 'success', message: 'Friend removed.' });
+  } catch (error) {
+    console.error('Error removing friend:', error);
+    res.status(500).json({ status: 'error', message: 'Internal Server Error' });
+  }
+};
+
+/**
+ * 7.8 Block User
+ */
+exports.blockUser = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { target_user_id } = req.body;
+
+    // Remove friendship
+    await pool.query(`
+      DELETE FROM friendships 
+      WHERE (user_one_id = $1 AND user_two_id = $2) OR (user_one_id = $2 AND user_two_id = $1)
+    `, [userId, target_user_id]);
+
+    // Delete requests
+    await pool.query(`
+      DELETE FROM friend_requests 
+      WHERE (sender_id = $1 AND receiver_id = $2) OR (sender_id = $2 AND receiver_id = $1)
+    `, [userId, target_user_id]);
+
+    // Add block
+    await pool.query(`
+      INSERT INTO blocked_users (blocker_id, blocked_id) 
+      VALUES ($1, $2)
+      ON CONFLICT DO NOTHING
+    `, [userId, target_user_id]);
+
+    res.status(200).json({ status: 'success', message: 'User blocked successfully.' });
+  } catch (error) {
+    console.error('Error blocking user:', error);
+    res.status(500).json({ status: 'error', message: 'Internal Server Error' });
+  }
+};
