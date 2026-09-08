@@ -68,6 +68,11 @@ exports.getProfile = async (req, res) => {
       WHERE subscriber_id = $1 AND target_user_id = $2
     `, [userId, creatorId]);
 
+    const [blockRows] = await pool.query(`
+      SELECT id FROM blocked_users 
+      WHERE blocker_id = $1 AND blocked_id = $2
+    `, [userId, creatorId]);
+
     res.status(200).json({
       status: 'success',
       data: {
@@ -83,7 +88,8 @@ exports.getProfile = async (req, res) => {
           video: parseFloat(rates.video_rate_per_min)
         },
         friendship_status: friendshipStatus,
-        is_notify_online_enabled: notifyRows.length > 0
+        is_notify_online_enabled: notifyRows.length > 0,
+        is_blocked: blockRows.length > 0
       }
     });
 
@@ -155,10 +161,41 @@ exports.blockUser = async (req, res) => {
   try {
     const creatorId = req.params.creator_id;
     const userId = req.user.id;
+    const { deleteChat } = req.body;
+
     await pool.query("INSERT INTO blocked_users (blocker_id, blocked_id) VALUES ($1, $2) ON CONFLICT (blocker_id, blocked_id) DO NOTHING", [userId, creatorId]);
+    
+    if (deleteChat) {
+      const [convRows] = await pool.query(`
+        SELECT id FROM conversations 
+        WHERE (user_one_id = $1 AND user_two_id = $2) OR (user_one_id = $2 AND user_two_id = $1)
+      `, [userId, creatorId]);
+      
+      if (convRows.length > 0) {
+        const convId = convRows[0].id;
+        await pool.query("DELETE FROM messages WHERE conversation_id = $1", [convId]);
+        await pool.query("DELETE FROM conversations WHERE id = $1", [convId]);
+      }
+    }
+
     res.status(200).json({ status: 'success', message: 'User blocked.' });
   } catch (error) {
     console.error('Error blocking user:', error);
+    res.status(500).json({ status: 'error', message: 'Internal Server Error' });
+  }
+};
+
+/**
+ * 6.5 Unblock User
+ */
+exports.unblockUser = async (req, res) => {
+  try {
+    const creatorId = req.params.creator_id;
+    const userId = req.user.id;
+    await pool.query("DELETE FROM blocked_users WHERE blocker_id = $1 AND blocked_id = $2", [userId, creatorId]);
+    res.status(200).json({ status: 'success', message: 'User unblocked.' });
+  } catch (error) {
+    console.error('Error unblocking user:', error);
     res.status(500).json({ status: 'error', message: 'Internal Server Error' });
   }
 };

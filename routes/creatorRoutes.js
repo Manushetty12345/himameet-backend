@@ -27,6 +27,8 @@ router.post('/creator/:creator_id/report', protect, creatorProfileController.rep
 // 6.4 Block User
 router.post('/creator/:creator_id/block', protect, creatorProfileController.blockUser);
 
+// 6.5 Unblock User
+router.post('/creator/:creator_id/unblock', protect, creatorProfileController.unblockUser);
 
 router.get('/creator/profile/settings', protect, creatorProfileController.getProfileSettings);
 router.put('/creator/profile/edit', protect, creatorProfileController.updateCreatorProfile);
