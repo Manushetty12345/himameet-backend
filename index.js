@@ -54,6 +54,17 @@ app.use('/api/calls', callRoutes);
 // Setup WebSockets
 setupChatSocket(server);
 
+// Temporary route to trigger database update from the browser
+app.get('/api/update-priya-age', async (req, res) => {
+  try {
+    const pool = require('./db');
+    await pool.query("UPDATE users SET age = 30 WHERE full_name ILIKE '%Priya%'");
+    res.send('<h2>✅ Successfully updated Priya age to 30!</h2><p>You can check your app now.</p>');
+  } catch (err) {
+    res.status(500).send('<h2>❌ Failed to update age:</h2><p>' + err.message + '</p>');
+  }
+});
+
 // Start Server
 server.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
