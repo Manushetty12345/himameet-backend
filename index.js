@@ -60,8 +60,8 @@ app.get('/api/accept-all', async (req, res) => {
     for (const reqObj of requests) {
       await pool.query('DELETE FROM friend_requests WHERE sender_id = $1 AND receiver_id = $2', [reqObj.sender_id, reqObj.receiver_id]);
       await pool.query(`
-        INSERT INTO friendships (user_one_id, user_two_id, status) 
-        VALUES ($1, $2, 'active')
+        INSERT INTO friendships (user_one_id, user_two_id) 
+        VALUES ($1, $2)
         ON CONFLICT DO NOTHING
       `, [reqObj.sender_id, reqObj.receiver_id]);
       count++;
