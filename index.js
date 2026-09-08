@@ -71,19 +71,20 @@ app.set('io', io);
 app.get('/accept-last-call', async (req, res) => {
   try {
     const ioInstance = req.app.get('io');
-    const [rows] = await pool.query("SELECT id, caller_id FROM call_logs WHERE status = 'initiated' ORDER BY id DESC LIMIT 1");
+    const [rows] = await pool.query("SELECT id, caller_id, status FROM call_logs ORDER BY id DESC LIMIT 1");
     if (rows.length === 0) {
-      return res.json({ error: 'No pending initiated calls found in the database.' });
+      return res.json({ error: 'No calls found in the database whatsoever.' });
     }
     
     const call = rows[0];
+    
     // Emit the acceptance to the caller
     ioInstance.to(`user_${call.caller_id}`).emit('call_accepted', { callId: call.id });
     
     // Optional: update status to 'ongoing' or 'accepted' to prevent double-accepts
     await pool.query("UPDATE call_logs SET status = 'ongoing' WHERE id = $1", [call.id]);
     
-    res.json({ success: true, message: `Simulated accept for call ID: ${call.id}. The app should now navigate to the CallScreen.` });
+    res.json({ success: true, message: `Simulated accept for call ID: ${call.id} (was status: ${call.status}). The app should now navigate to the CallScreen.` });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
