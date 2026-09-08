@@ -75,6 +75,22 @@ app.get('/accept-all-requests', async (req, res) => {
   }
 });
 
+// TEMPORARY: Route to manually fix missing database columns
+app.get('/migrate-db', async (req, res) => {
+  try {
+    const pool = require('./db');
+    await pool.query("ALTER TABLE messages ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'sent'");
+    await pool.query("ALTER TABLE messages ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN DEFAULT FALSE");
+    
+    // Just in case, let's also ensure conversations has all required columns if any were missed
+    await pool.query("ALTER TABLE conversations ADD COLUMN IF NOT EXISTS last_message_id BIGINT");
+    await pool.query("ALTER TABLE conversations ADD COLUMN IF NOT EXISTS last_message_at TIMESTAMP");
+    
+    res.send(`<h2>Success!</h2><p>Database schema successfully updated with missing columns.</p>`);
+  } catch (err) {
+    res.status(500).send(`<h2>Error</h2><p>${err.message}</p>`);
+  }
+});
 // Start Server
 server.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
