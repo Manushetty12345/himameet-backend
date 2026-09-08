@@ -211,7 +211,7 @@ exports.phonepeWebhook = async (req, res) => {
     await pool.query('COMMIT');
     res.status(200).send('OK');
   } catch (error) {
-    await pool.query('ROLLBACK').catch(() => {});
+    await pool.query('ROLLBACK').catch(() => { });
     console.error('Webhook error:', error);
     res.status(500).send('Internal Server Error');
   }
@@ -329,7 +329,7 @@ exports.verifyRechargePayment = async (req, res) => {
       );
       await pool.query('COMMIT');
     } catch (txErr) {
-      await pool.query('ROLLBACK').catch(() => {});
+      await pool.query('ROLLBACK').catch(() => { });
       throw txErr;
     }
 

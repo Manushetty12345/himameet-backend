@@ -32,6 +32,16 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', message: 'Hima Backend is running' });
 });
 
+// Temporary wallet reset route
+app.get('/reset-wallet', async (req, res) => {
+  try {
+    await pool.query('UPDATE wallets SET coin_balance = 0');
+    res.json({ status: 'ok', message: 'All wallets reset to 0' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Serve static files from the 'public' folder (for avatars)
 const path = require('path');
 app.use('/public', express.static(path.join(__dirname, 'public')));

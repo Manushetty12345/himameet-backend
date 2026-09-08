@@ -2,10 +2,67 @@ const pool = require('../db');
 
 // Call timers tracking: { callId: intervalId }
 const activeCallTimers = {};
+// Track busy users
+const activeUsersInCall = new Set();
 
 module.exports = (io) => {
   io.on('connection', (socket) => {
     
+    // Join a user room for direct signaling
+    if (socket.user && socket.user.id) {
+      socket.join(`user_${socket.user.id}`);
+    }
+
+    // 0. Initiate Call
+    socket.on('initiate_call', async (data) => {
+      const { targetId, type, rate } = data;
+      const callerId = socket.user.id;
+
+      if (activeUsersInCall.has(String(targetId)) || activeUsersInCall.has(targetId)) {
+        return socket.emit('call_busy', { message: 'The user is currently on another call. Please try again later.' });
+      }
+
+      try {
+        const [result] = await pool.query(
+          `INSERT INTO call_logs (caller_id, receiver_id, call_type, rate_per_min, status) VALUES ($1, $2, $3, $4, 'initiated') RETURNING id`,
+          [callerId, targetId, type, rate]
+        );
+        const callId = result[0].id;
+        
+        socket.join(`call_${callId}`);
+        
+        // Let the receiver know
+        io.to(`user_${targetId}`).emit('incoming_call', {
+          callId,
+          callerId,
+          type,
+          rate,
+        });
+      } catch (err) {
+        console.error('Error initiating call:', err);
+      }
+    });
+
+    socket.on('accept_call', async (data) => {
+      const { callId, callerId } = data;
+      socket.join(`call_${callId}`);
+      
+      activeUsersInCall.add(String(socket.user.id));
+      activeUsersInCall.add(String(callerId));
+      
+      io.to(`user_${callerId}`).emit('call_accepted', { callId });
+    });
+
+    socket.on('decline_call', async (data) => {
+      const { callId, callerId } = data;
+      try {
+        await pool.query(`UPDATE call_logs SET status = 'completed', end_reason = 'declined' WHERE id = $1`, [callId]);
+        io.to(`user_${callerId}`).emit('call_declined', { callId });
+      } catch (err) {
+        console.error('Error declining call:', err);
+      }
+    });
+
     // 1. Join Call Room
     socket.on('join_call', async (data) => {
       const { callId } = data;
@@ -31,10 +88,21 @@ module.exports = (io) => {
       socket.leave(`call_${callId}`);
       stopCallBillingTimer(callId);
       
-      // Update DB
-      await pool.query(`UPDATE call_logs SET status = 'completed', ended_at = NOW() WHERE id = $1 AND status != 'completed'`, [callId]);
-      
-      io.to(`call_${callId}`).emit('call_ended', { message: 'The other user hung up.' });
+      try {
+        // Clear busy status
+        const [callRows] = await pool.query(`SELECT caller_id, receiver_id FROM call_logs WHERE id = $1`, [callId]);
+        if (callRows.length > 0) {
+          activeUsersInCall.delete(String(callRows[0].caller_id));
+          activeUsersInCall.delete(String(callRows[0].receiver_id));
+        }
+
+        // Update DB
+        await pool.query(`UPDATE call_logs SET status = 'completed', ended_at = NOW() WHERE id = $1 AND status != 'completed'`, [callId]);
+        
+        io.to(`call_${callId}`).emit('call_ended', { message: 'The other user hung up.' });
+      } catch (err) {
+        console.error('Error ending call:', err);
+      }
     });
 
   });
