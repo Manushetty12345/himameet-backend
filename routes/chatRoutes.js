@@ -10,4 +10,7 @@ router.delete('/:chat_id', protect, chatController.clearChat);
 // 7.5 Get Chat Messages
 router.get('/:chat_id/messages', protect, chatController.getMessages);
 
+// 7.6 Get or Create Conversation
+router.get('/conversation/:target_user_id', protect, chatController.getOrCreateConversation);
+
 module.exports = router;

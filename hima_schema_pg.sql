@@ -160,6 +160,7 @@ CREATE TABLE messages (
     sender_id       BIGINT NOT NULL REFERENCES users(id),
     message_text    TEXT,
     message_type    VARCHAR(20) DEFAULT 'text',                -- 'text','image','voice'
+    status          VARCHAR(20) DEFAULT 'sent',                -- 'sent', 'delivered', 'read'
     is_deleted      BOOLEAN DEFAULT FALSE,
     created_at      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );

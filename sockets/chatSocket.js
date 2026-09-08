@@ -58,7 +58,7 @@ module.exports = (server) => {
 
       try {
         const [result] = await pool.query(
-          `INSERT INTO messages (conversation_id, sender_id, message_text, message_type) VALUES ($1, $2, $3, $4) RETURNING id`,
+          `INSERT INTO messages (conversation_id, sender_id, message_text, message_type, status) VALUES ($1, $2, $3, $4, 'sent') RETURNING id`,
           [conversationId, senderId, messageText, messageType || 'text']
         );
         
@@ -72,10 +72,31 @@ module.exports = (server) => {
           sender_id: senderId,
           content: messageText,
           message_type: messageType || 'text',
+          status: 'sent',
           timestamp: new Date()
         });
       } catch (err) {
         console.error('Error saving message:', err);
+      }
+    });
+
+    socket.on('message_delivered', async (data) => {
+      const { conversationId, messageId } = data;
+      try {
+        await pool.query(`UPDATE messages SET status = 'delivered' WHERE id = $1 AND status = 'sent'`, [messageId]);
+        io.to(`chat_${conversationId}`).emit('message_status_update', { message_id: messageId, status: 'delivered' });
+      } catch (err) {
+        console.error('Error updating to delivered:', err);
+      }
+    });
+
+    socket.on('message_read', async (data) => {
+      const { conversationId, messageId } = data;
+      try {
+        await pool.query(`UPDATE messages SET status = 'read' WHERE id = $1 AND status != 'read'`, [messageId]);
+        io.to(`chat_${conversationId}`).emit('message_status_update', { message_id: messageId, status: 'read' });
+      } catch (err) {
+        console.error('Error updating to read:', err);
       }
     });
 

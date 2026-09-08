@@ -36,6 +36,7 @@ exports.getMessages = async (req, res) => {
         sender_id,
         message_text AS content,
         message_type,
+        status,
         created_at AS timestamp
       FROM messages
       WHERE conversation_id = $1 AND is_deleted = false
@@ -49,6 +50,41 @@ exports.getMessages = async (req, res) => {
     });
   } catch (error) {
     console.error('Error fetching messages:', error);
+    res.status(500).json({ status: 'error', message: 'Internal Server Error' });
+  }
+};
+
+/**
+ * 7.6 Get or Create Conversation
+ */
+exports.getOrCreateConversation = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const targetUserId = req.params.target_user_id;
+
+    let [convRows] = await pool.query(`
+      SELECT id FROM conversations 
+      WHERE (user_one_id = $1 AND user_two_id = $2) OR (user_one_id = $2 AND user_two_id = $1)
+    `, [userId, targetUserId]);
+
+    let conversationId;
+
+    if (convRows.length > 0) {
+      conversationId = convRows[0].id;
+    } else {
+      const [insertRes] = await pool.query(`
+        INSERT INTO conversations (user_one_id, user_two_id) 
+        VALUES ($1, $2) RETURNING id
+      `, [userId, targetUserId]);
+      conversationId = insertRes[0].id;
+    }
+
+    res.status(200).json({
+      status: 'success',
+      data: { conversation_id: conversationId }
+    });
+  } catch (error) {
+    console.error('Error getting/creating conversation:', error);
     res.status(500).json({ status: 'error', message: 'Internal Server Error' });
   }
 };
