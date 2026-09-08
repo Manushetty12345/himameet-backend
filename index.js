@@ -54,43 +54,6 @@ app.use('/api/calls', callRoutes);
 // Setup WebSockets
 setupChatSocket(server);
 
-// TEMPORARY: Route to manually accept all friend requests via browser
-app.get('/accept-all-requests', async (req, res) => {
-  try {
-    const pool = require('./db');
-    const [requests] = await pool.query("SELECT * FROM friend_requests WHERE status = 'pending'");
-    let count = 0;
-    for (const request of requests) {
-      await pool.query('DELETE FROM friend_requests WHERE id = $1', [request.id]);
-      await pool.query(`
-        INSERT INTO friendships (user_one_id, user_two_id) 
-        VALUES ($1, $2)
-        ON CONFLICT DO NOTHING
-      `, [request.sender_id, request.receiver_id]);
-      count++;
-    }
-    res.send(`<h2>Success!</h2><p>Accepted ${count} pending friend requests.</p>`);
-  } catch (err) {
-    res.status(500).send(`<h2>Error</h2><p>${err.message}</p>`);
-  }
-});
-
-// TEMPORARY: Route to manually fix missing database columns
-app.get('/migrate-db', async (req, res) => {
-  try {
-    const pool = require('./db');
-    await pool.query("ALTER TABLE messages ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'sent'");
-    await pool.query("ALTER TABLE messages ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN DEFAULT FALSE");
-    
-    // Just in case, let's also ensure conversations has all required columns if any were missed
-    await pool.query("ALTER TABLE conversations ADD COLUMN IF NOT EXISTS last_message_id BIGINT");
-    await pool.query("ALTER TABLE conversations ADD COLUMN IF NOT EXISTS last_message_at TIMESTAMP");
-    
-    res.send(`<h2>Success!</h2><p>Database schema successfully updated with missing columns.</p>`);
-  } catch (err) {
-    res.status(500).send(`<h2>Error</h2><p>${err.message}</p>`);
-  }
-});
 // Start Server
 server.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
