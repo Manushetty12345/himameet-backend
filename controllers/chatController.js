@@ -85,6 +85,6 @@ exports.getOrCreateConversation = async (req, res) => {
     });
   } catch (error) {
     console.error('Error getting/creating conversation:', error);
-    res.status(500).json({ status: 'error', message: 'Internal Server Error' });
+    res.status(500).json({ status: 'error', message: error.message || 'Internal Server Error' });
   }
 };
