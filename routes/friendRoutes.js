@@ -15,4 +15,13 @@ router.get('/requests/sent', protect, friendController.getRequestsSent);
 // 7.3 Toggle Favourite
 router.post('/:friend_id/favourite', protect, friendController.toggleFavourite);
 
+// 7.4 Check Friend Status
+router.get('/status/:target_user_id', protect, friendController.checkStatus);
+
+// 7.5 Cancel Friend Request
+router.post('/cancel', protect, friendController.cancelRequest);
+
+// 7.6 Accept Friend Request
+router.post('/accept', protect, friendController.acceptRequest);
+
 module.exports = router;

@@ -153,3 +153,82 @@ exports.toggleFavourite = async (req, res) => {
     res.status(500).json({ status: 'error', message: 'Internal Server Error' });
   }
 };
+
+/**
+ * 7.4 Check Friend Status
+ */
+exports.checkStatus = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const targetUserId = req.params.target_user_id;
+
+    const [friendRows] = await pool.query(`
+      SELECT user_one_id FROM friendships 
+      WHERE (user_one_id = $1 AND user_two_id = $2) OR (user_one_id = $2 AND user_two_id = $1)
+    `, [userId, targetUserId]);
+
+    if (friendRows.length > 0) {
+      return res.status(200).json({ status: 'success', data: { friend_status: 'friends' } });
+    }
+
+    const [requestRows] = await pool.query(`
+      SELECT sender_id FROM friend_requests 
+      WHERE (sender_id = $1 AND receiver_id = $2) OR (sender_id = $2 AND receiver_id = $1)
+    `, [userId, targetUserId]);
+
+    if (requestRows.length > 0) {
+      return res.status(200).json({ status: 'success', data: { friend_status: 'pending' } });
+    }
+
+    return res.status(200).json({ status: 'success', data: { friend_status: 'none' } });
+  } catch (error) {
+    console.error('Error checking status:', error);
+    res.status(500).json({ status: 'error', message: 'Internal Server Error' });
+  }
+};
+
+/**
+ * 7.5 Cancel Friend Request
+ */
+exports.cancelRequest = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { target_user_id } = req.body;
+
+    await pool.query(`
+      DELETE FROM friend_requests 
+      WHERE (sender_id = $1 AND receiver_id = $2) OR (sender_id = $2 AND receiver_id = $1)
+    `, [userId, target_user_id]);
+
+    res.status(200).json({ status: 'success', message: 'Friend request cancelled.' });
+  } catch (error) {
+    console.error('Error cancelling request:', error);
+    res.status(500).json({ status: 'error', message: 'Internal Server Error' });
+  }
+};
+
+/**
+ * 7.6 Accept Friend Request
+ */
+exports.acceptRequest = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { target_user_id } = req.body;
+
+    await pool.query(`
+      DELETE FROM friend_requests 
+      WHERE (sender_id = $1 AND receiver_id = $2) OR (sender_id = $2 AND receiver_id = $1)
+    `, [userId, target_user_id]);
+
+    await pool.query(`
+      INSERT INTO friendships (user_one_id, user_two_id, status) 
+      VALUES ($1, $2, 'active')
+      ON CONFLICT DO NOTHING
+    `, [userId, target_user_id]);
+
+    res.status(200).json({ status: 'success', message: 'Friend request accepted.' });
+  } catch (error) {
+    console.error('Error accepting request:', error);
+    res.status(500).json({ status: 'error', message: 'Internal Server Error' });
+  }
+};
