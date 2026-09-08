@@ -50,7 +50,7 @@ exports.getMessages = async (req, res) => {
     });
   } catch (error) {
     console.error('Error fetching messages:', error);
-    res.status(500).json({ status: 'error', message: 'Internal Server Error' });
+    res.status(500).json({ status: 'error', message: error.message || 'Internal Server Error' });
   }
 };
 
