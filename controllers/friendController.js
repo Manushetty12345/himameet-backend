@@ -180,6 +180,15 @@ exports.checkStatus = async (req, res) => {
       return res.status(200).json({ status: 'success', data: { friend_status: 'pending' } });
     }
 
+    const [blockRows] = await pool.query(`
+      SELECT * FROM blocked_users 
+      WHERE (blocker_id = $1 AND blocked_id = $2) OR (blocker_id = $2 AND blocked_id = $1)
+    `, [userId, targetUserId]);
+
+    if (blockRows.length > 0) {
+      return res.status(200).json({ status: 'success', data: { friend_status: 'blocked' } });
+    }
+
     return res.status(200).json({ status: 'success', data: { friend_status: 'none' } });
   } catch (error) {
     console.error('Error checking status:', error);
