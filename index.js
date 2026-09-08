@@ -54,6 +54,26 @@ app.use('/api/calls', callRoutes);
 // Setup WebSockets
 setupChatSocket(server);
 
+// TEMPORARY: Route to manually accept all friend requests via browser
+app.get('/accept-all-requests', async (req, res) => {
+  try {
+    const pool = require('./db');
+    const [requests] = await pool.query("SELECT * FROM friend_requests WHERE status = 'pending'");
+    let count = 0;
+    for (const request of requests) {
+      await pool.query('DELETE FROM friend_requests WHERE id = $1', [request.id]);
+      await pool.query(`
+        INSERT INTO friendships (user_one_id, user_two_id) 
+        VALUES ($1, $2)
+        ON CONFLICT DO NOTHING
+      `, [request.sender_id, request.receiver_id]);
+      count++;
+    }
+    res.send(`<h2>Success!</h2><p>Accepted ${count} pending friend requests.</p>`);
+  } catch (err) {
+    res.status(500).send(`<h2>Error</h2><p>${err.message}</p>`);
+  }
+});
 
 // Start Server
 server.listen(PORT, () => {
