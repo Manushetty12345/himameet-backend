@@ -59,8 +59,12 @@ exports.getMessages = async (req, res) => {
  */
 exports.getOrCreateConversation = async (req, res) => {
   try {
-    const userId = req.user.id;
+    const userId = req.user?.id;
     const targetUserId = req.params.target_user_id;
+
+    if (!userId || !targetUserId || targetUserId === 'undefined' || targetUserId === 'null') {
+      return res.status(400).json({ status: 'error', message: `Invalid IDs: user=${userId}, target=${targetUserId}` });
+    }
 
     let [convRows] = await pool.query(`
       SELECT id FROM conversations 
@@ -69,13 +73,18 @@ exports.getOrCreateConversation = async (req, res) => {
 
     let conversationId;
 
-    if (convRows.length > 0) {
+    if (convRows && convRows.length > 0) {
       conversationId = convRows[0].id;
     } else {
       const [insertRes] = await pool.query(`
         INSERT INTO conversations (user_one_id, user_two_id) 
         VALUES ($1, $2) RETURNING id
       `, [userId, targetUserId]);
+      
+      if (!insertRes || insertRes.length === 0) {
+        throw new Error('Database insert failed: No returning id');
+      }
+      
       conversationId = insertRes[0].id;
     }
 
