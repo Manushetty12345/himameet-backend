@@ -50,6 +50,7 @@ exports.getFriends = async (req, res) => {
         u.id AS user_id, 
         u.full_name AS name, 
         a.avatar_url,
+        u.is_online,
         'friend' AS status
       FROM friendships f
       JOIN users u ON (u.id = f.user_one_id OR u.id = f.user_two_id) AND u.id != $1
