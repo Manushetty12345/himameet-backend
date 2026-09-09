@@ -92,6 +92,47 @@ app.get('/accept-last-call', async (req, res) => {
   }
 });
 
+// ============================================================
+// TEMPORARY TEST ROUTE - Accept the latest pending friend request
+// Open in browser: https://himameet-backend.onrender.com/accept-latest-friend-request
+// ============================================================
+app.get('/accept-latest-friend-request', async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT fr.id, fr.sender_id, fr.receiver_id, 
+              s.full_name AS sender_name, r.full_name AS receiver_name
+       FROM friend_requests fr
+       JOIN users s ON s.id = fr.sender_id
+       JOIN users r ON r.id = fr.receiver_id
+       WHERE fr.status = 'pending'
+       ORDER BY fr.id DESC
+       LIMIT 1`
+    );
+
+    const rows = result.rows;
+
+    if (rows.length === 0) {
+      return res.json({ error: 'No pending friend requests found in the database.' });
+    }
+
+    const req_ = rows[0];
+
+    await pool.query(`UPDATE friend_requests SET status = 'accepted' WHERE id = $1`, [req_.id]);
+    await pool.query(
+      `INSERT INTO friendships (user_one_id, user_two_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+      [req_.sender_id, req_.receiver_id]
+    );
+
+    res.json({
+      success: true,
+      message: `✅ Friend request accepted! ${req_.sender_name} and ${req_.receiver_name} are now friends.`,
+      request_id: req_.id,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Initialize tables if they don't exist
 pool.query(`
   CREATE TABLE IF NOT EXISTS blocked_users (
