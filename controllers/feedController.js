@@ -1,4 +1,4 @@
-﻿const pool = require('../db');
+const pool = require('../db');
 
 /**
  * 4.1 Get Home Feed (Creator List)
@@ -92,11 +92,14 @@ exports.randomMatch = async (req, res) => {
   try {
     const { call_type } = req.body;
 
-    // PostgreSQL uses RANDOM() instead of RAND()
     const [rows] = await pool.query(`
-      SELECT u.id AS matched_creator_id
+      SELECT 
+        u.id AS matched_creator_id,
+        u.full_name AS name,
+        a.avatar_url
       FROM users u
       LEFT JOIN creator_settings cs ON u.id = cs.user_id
+      LEFT JOIN avatars a ON u.avatar_id = a.id
       WHERE u.user_role = 'creator' 
         AND u.is_online = true 
         AND (cs.is_available = true OR cs.is_available IS NULL)
@@ -113,7 +116,11 @@ exports.randomMatch = async (req, res) => {
 
     res.status(200).json({
       status: 'success',
-      data: rows[0]
+      data: {
+        matched_creator_id: rows[0].matched_creator_id,
+        name: rows[0].name,
+        avatarUri: rows[0].avatar_url || 'https://hima-bucket.s3.amazonaws.com/default-female.png'
+      }
     });
   } catch (error) {
     console.error('Error finding random match:', error);
