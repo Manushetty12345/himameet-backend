@@ -131,6 +131,23 @@ app.get('/accept-latest-friend-request', async (req, res) => {
   }
 });
 
+// DEBUG: See all friend requests
+app.get('/debug-friend-requests', async (req, res) => {
+  try {
+    const [rows] = await pool.query(
+      `SELECT fr.id, fr.sender_id, fr.receiver_id, fr.status,
+              s.full_name AS sender_name, r.full_name AS receiver_name
+       FROM friend_requests fr
+       JOIN users s ON s.id = fr.sender_id
+       JOIN users r ON r.id = fr.receiver_id
+       ORDER BY fr.id DESC LIMIT 20`
+    );
+    res.json({ total: rows.length, requests: rows });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Initialize tables if they don't exist
 pool.query(`
   CREATE TABLE IF NOT EXISTS blocked_users (
