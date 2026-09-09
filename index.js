@@ -131,6 +131,44 @@ app.get('/accept-latest-friend-request', async (req, res) => {
   }
 });
 
+// TEMP: Simulate female accepting the latest pending friend request
+// Open in browser: https://himameet-backend.onrender.com/female-accept-latest-request
+app.get('/female-accept-latest-request', async (req, res) => {
+  try {
+    const [rows] = await pool.query(
+      `SELECT fr.id, fr.sender_id, fr.receiver_id,
+              s.full_name AS sender_name, r.full_name AS receiver_name
+       FROM friend_requests fr
+       JOIN users s ON s.id = fr.sender_id
+       JOIN users r ON r.id = fr.receiver_id
+       WHERE fr.status = 'pending' OR fr.status IS NULL
+       ORDER BY fr.id DESC LIMIT 1`
+    );
+
+    if (!rows || rows.length === 0) {
+      return res.json({ error: 'No pending friend requests found.' });
+    }
+
+    const req_ = rows[0];
+
+    // Simulate female accepting: set status to accepted_by_receiver
+    await pool.query(
+      `UPDATE friend_requests SET status = 'accepted_by_receiver' WHERE id = $1`,
+      [req_.id]
+    );
+
+    res.json({
+      success: true,
+      message: `✅ Female (${req_.receiver_name}) accepted! Now check male's REQUESTS tab.`,
+      request_id: req_.id,
+      sender: req_.sender_name,
+      receiver: req_.receiver_name
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // DEBUG: See all friend requests
 app.get('/debug-friend-requests', async (req, res) => {
   try {
