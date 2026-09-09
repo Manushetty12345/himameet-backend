@@ -98,7 +98,7 @@ app.get('/accept-last-call', async (req, res) => {
 // ============================================================
 app.get('/accept-latest-friend-request', async (req, res) => {
   try {
-    const result = await pool.query(
+    const [rows] = await pool.query(
       `SELECT fr.id, fr.sender_id, fr.receiver_id, 
               s.full_name AS sender_name, r.full_name AS receiver_name
        FROM friend_requests fr
@@ -109,9 +109,7 @@ app.get('/accept-latest-friend-request', async (req, res) => {
        LIMIT 1`
     );
 
-    const rows = result.rows;
-
-    if (rows.length === 0) {
+    if (!rows || rows.length === 0) {
       return res.json({ error: 'No pending friend requests found in the database.' });
     }
 
