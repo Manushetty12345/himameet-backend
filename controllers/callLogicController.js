@@ -5,11 +5,19 @@ exports.sendGift = async (req, res) => {
     const userId = req.user.id;
     const { giftId } = req.body;
 
-    const [giftRows] = await pool.query('SELECT price FROM gifts WHERE id = $1', [giftId]);
-    if (giftRows.length === 0) {
+    const defaultGifts = [
+      { id: 'rose', price: 10 },
+      { id: 'coffee', price: 25 },
+      { id: 'heart', price: 50 },
+      { id: 'diamond', price: 100 },
+      { id: 'crown', price: 500 }
+    ];
+    
+    const foundGift = defaultGifts.find(g => g.id === giftId);
+    if (!foundGift) {
       return res.status(404).json({ status: 'error', message: 'Gift not found' });
     }
-    const giftPrice = giftRows[0].price;
+    const giftPrice = foundGift.price;
 
     const [walletRows] = await pool.query('SELECT coin_balance FROM wallets WHERE user_id = $1', [userId]);
     const balance = walletRows.length > 0 ? walletRows[0].coin_balance : 0;
