@@ -257,26 +257,25 @@ exports.acceptRequest = async (req, res) => {
  */
 exports.confirmRequest = async (req, res) => {
   try {
-    const userId = req.user.id; // This is the original SENDER
-    const { target_user_id } = req.body; // This is the RECEIVER who accepted
+    const userId = req.user.id; // This is the original SENDER (male)
+    const { target_user_id } = req.body; // This is the RECEIVER (female) who accepted
 
     // Delete the request
-    await pool.query(`
-      DELETE FROM friend_requests
-      WHERE sender_id = $1 AND receiver_id = $2
-    `, [userId, target_user_id]);
+    await pool.query(
+      `DELETE FROM friend_requests WHERE sender_id = $1 AND receiver_id = $2`,
+      [userId, target_user_id]
+    );
 
-    // Create the friendship
-    await pool.query(`
-      INSERT INTO friendships (user_one_id, user_two_id, status)
-      VALUES ($1, $2, 'active')
-      ON CONFLICT DO NOTHING
-    `, [userId, target_user_id]);
+    // Create the friendship (no status column in this table)
+    await pool.query(
+      `INSERT INTO friendships (user_one_id, user_two_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+      [userId, target_user_id]
+    );
 
     res.status(200).json({ status: 'success', message: 'Friendship confirmed!' });
   } catch (error) {
     console.error('Error confirming friendship:', error);
-    res.status(500).json({ status: 'error', message: 'Internal Server Error' });
+    res.status(500).json({ status: 'error', message: error.message });
   }
 };
 
