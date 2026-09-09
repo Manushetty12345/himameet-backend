@@ -100,7 +100,7 @@ exports.getRequestsReceived = async (req, res) => {
       FROM friend_requests fr
       JOIN users u ON u.id = fr.sender_id
       LEFT JOIN avatars a ON u.avatar_id = a.id
-      WHERE fr.receiver_id = $1
+      WHERE fr.receiver_id = $1 AND fr.status = 'pending'
     `, [userId]);
     const formattedData = rows.map(row => ({
       ...row, avatar_url: row.avatar_url || 'https://hima-bucket.s3.amazonaws.com/default-avatar.png'
@@ -120,7 +120,7 @@ exports.getRequestsSent = async (req, res) => {
       FROM friend_requests fr
       JOIN users u ON u.id = fr.receiver_id
       LEFT JOIN avatars a ON u.avatar_id = a.id
-      WHERE fr.sender_id = $1
+      WHERE fr.sender_id = $1 AND fr.status = 'pending'
     `, [userId]);
     const formattedData = rows.map(row => ({
       ...row, avatar_url: row.avatar_url || 'https://hima-bucket.s3.amazonaws.com/default-avatar.png'
