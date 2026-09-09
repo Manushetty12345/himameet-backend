@@ -95,17 +95,31 @@ exports.getFavourites = async (req, res) => {
 exports.getRequestsReceived = async (req, res) => {
   try {
     const userId = req.user.id;
-    const [rows] = await pool.query(`
+
+    // Requests sent TO me that are still pending (I am the receiver)
+    const [pendingRows] = await pool.query(`
       SELECT u.id AS user_id, u.full_name AS name, a.avatar_url, 'received' AS status
       FROM friend_requests fr
       JOIN users u ON u.id = fr.sender_id
       LEFT JOIN avatars a ON u.avatar_id = a.id
       WHERE fr.receiver_id = $1 AND fr.status = 'pending'
     `, [userId]);
-    const formattedData = rows.map(row => ({
-      ...row, avatar_url: row.avatar_url || 'https://hima-bucket.s3.amazonaws.com/default-avatar.png'
+
+    // Requests I SENT that the receiver has accepted (waiting for my confirmation)
+    const [acceptedRows] = await pool.query(`
+      SELECT u.id AS user_id, u.full_name AS name, a.avatar_url, 'accepted_by_receiver' AS status
+      FROM friend_requests fr
+      JOIN users u ON u.id = fr.receiver_id
+      LEFT JOIN avatars a ON u.avatar_id = a.id
+      WHERE fr.sender_id = $1 AND fr.status = 'accepted_by_receiver'
+    `, [userId]);
+
+    const combined = [...pendingRows, ...acceptedRows].map(row => ({
+      ...row,
+      avatar_url: row.avatar_url || 'https://hima-bucket.s3.amazonaws.com/default-avatar.png'
     }));
-    res.status(200).json({ status: 'success', data: formattedData });
+
+    res.status(200).json({ status: 'success', data: combined });
   } catch (error) {
     console.error('Error fetching received requests:', error);
     res.status(500).json({ status: 'error', message: 'Internal Server Error' });
@@ -217,27 +231,51 @@ exports.cancelRequest = async (req, res) => {
 };
 
 /**
- * 7.6 Accept Friend Request
+ * 7.6 Accept Friend Request (by RECEIVER only — sets status to accepted_by_receiver)
+ * The SENDER must then confirm via /confirm endpoint to create the friendship.
  */
 exports.acceptRequest = async (req, res) => {
   try {
-    const userId = req.user.id;
-    const { target_user_id } = req.body;
+    const userId = req.user.id; // This is the RECEIVER
+    const { target_user_id } = req.body; // This is the SENDER
 
     await pool.query(`
-      DELETE FROM friend_requests 
-      WHERE (sender_id = $1 AND receiver_id = $2) OR (sender_id = $2 AND receiver_id = $1)
+      UPDATE friend_requests
+      SET status = 'accepted_by_receiver'
+      WHERE sender_id = $1 AND receiver_id = $2 AND status = 'pending'
+    `, [target_user_id, userId]);
+
+    res.status(200).json({ status: 'success', message: 'Request accepted. Waiting for sender confirmation.' });
+  } catch (error) {
+    console.error('Error accepting request:', error);
+    res.status(500).json({ status: 'error', message: 'Internal Server Error' });
+  }
+};
+
+/**
+ * 7.6b Confirm Friend Request (by SENDER — creates actual friendship)
+ */
+exports.confirmRequest = async (req, res) => {
+  try {
+    const userId = req.user.id; // This is the original SENDER
+    const { target_user_id } = req.body; // This is the RECEIVER who accepted
+
+    // Delete the request
+    await pool.query(`
+      DELETE FROM friend_requests
+      WHERE sender_id = $1 AND receiver_id = $2
     `, [userId, target_user_id]);
 
+    // Create the friendship
     await pool.query(`
-      INSERT INTO friendships (user_one_id, user_two_id, status) 
+      INSERT INTO friendships (user_one_id, user_two_id, status)
       VALUES ($1, $2, 'active')
       ON CONFLICT DO NOTHING
     `, [userId, target_user_id]);
 
-    res.status(200).json({ status: 'success', message: 'Friend request accepted.' });
+    res.status(200).json({ status: 'success', message: 'Friendship confirmed!' });
   } catch (error) {
-    console.error('Error accepting request:', error);
+    console.error('Error confirming friendship:', error);
     res.status(500).json({ status: 'error', message: 'Internal Server Error' });
   }
 };

@@ -21,8 +21,11 @@ router.get('/status/:target_user_id', protect, friendController.checkStatus);
 // 7.5 Cancel Friend Request
 router.post('/cancel', protect, friendController.cancelRequest);
 
-// 7.6 Accept Friend Request
+// 7.6 Accept Friend Request (by receiver — sets status to accepted_by_receiver)
 router.post('/accept', protect, friendController.acceptRequest);
+
+// 7.6b Confirm Friend Request (by sender — creates actual friendship)
+router.post('/confirm', protect, friendController.confirmRequest);
 
 // 7.7 Remove Friend
 router.post('/remove', protect, friendController.removeFriend);
