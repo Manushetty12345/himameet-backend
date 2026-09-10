@@ -70,7 +70,7 @@ module.exports = (io) => {
     socket.on('decline_call', async (data) => {
       const { callId, callerId } = data;
       try {
-        await pool.query(`UPDATE call_logs SET status = 'completed', end_reason = 'declined' WHERE id = $1`, [callId]);
+        await pool.query(`UPDATE call_logs SET status = 'missed', end_reason = 'declined', ended_at = NOW() WHERE id = $1`, [callId]);
         io.to(`user_${callerId}`).emit('call_declined', { callId });
       } catch (err) {
         console.error('Error declining call:', err);
