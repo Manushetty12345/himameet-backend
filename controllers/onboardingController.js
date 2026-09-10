@@ -126,7 +126,7 @@ exports.saveProfileSetup = async (req, res) => {
     const [result] = await pool.query(
       `INSERT INTO users (phone_number, country_code, full_name, user_role, gender, avatar_id, language_id, referral_code, referred_by, is_verified) 
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id`,
-      [temp_phone, temp_country_code || '+91', fullName, 'male', gender, avatar_id, language_id, referral_code, referrerId, true]
+      [temp_phone, temp_country_code || '+91', fullName, 'user', gender, avatar_id, language_id, referral_code, referrerId, true]
     );
 
     const newUserId = result[0].id;
@@ -143,7 +143,7 @@ exports.saveProfileSetup = async (req, res) => {
       );
     }
 
-    const token = jwt.sign({ id: newUserId, role: 'male' }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
+    const token = jwt.sign({ id: newUserId, role: 'user' }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
 
     res.status(200).json({
       status: 'success',
@@ -153,7 +153,7 @@ exports.saveProfileSetup = async (req, res) => {
         token,
         user: {
           id: newUserId,
-          role: 'male',
+          role: 'user',
           name: fullName,
           phone_number: temp_phone
         }
