@@ -41,11 +41,12 @@ exports.getDashboardHome = async (req, res) => {
         u.id AS user_id, 
         u.full_name AS name, 
         a.avatar_url, 
+        c.call_type,
         c.created_at AS sent_at 
       FROM call_logs c
       JOIN users u ON c.caller_id = u.id
       LEFT JOIN avatars a ON u.avatar_id = a.id
-      WHERE c.receiver_id = $1 AND c.status = 'ringing'
+      WHERE c.receiver_id = $1 AND c.status = 'initiated'
     `, [creatorId]);
 
     const formattedRequests = pendingCalls.map(req => ({

@@ -113,6 +113,20 @@ app.get('/accept-last-call', async (req, res) => {
 });
 
 // ============================================================
+// TEMPORARY TEST ROUTE - CLEAR STUCK CALLS (activeUsersInCall)
+// Open in browser: https://himameet-backend.onrender.com/clear-active-calls
+// ============================================================
+const callSocketModule = require('./sockets/callSocket');
+app.get('/clear-active-calls', (req, res) => {
+  if (callSocketModule.activeUsersInCall) {
+    callSocketModule.activeUsersInCall.clear();
+    res.json({ success: true, message: 'All active and stuck calls have been cleared from memory!' });
+  } else {
+    res.json({ success: false, message: 'Could not access activeUsersInCall.' });
+  }
+});
+
+// ============================================================
 // TEMPORARY TEST ROUTE - Accept the latest pending friend request
 // Open in browser: https://himameet-backend.onrender.com/accept-latest-friend-request
 // ============================================================

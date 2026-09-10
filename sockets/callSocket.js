@@ -186,3 +186,5 @@ function stopCallBillingTimer(callId) {
     console.log(`Stopped billing timer for call ${callId}`);
   }
 }
+
+module.exports.activeUsersInCall = activeUsersInCall;
