@@ -8,7 +8,7 @@ const pool = require('../db');
 exports.getCreators = async (req, res) => {
   try {
     const userId = req.user.id;
-    const filter = req.query.filter;
+    const filter = req.query.filter ? req.query.filter.toLowerCase() : undefined;
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 20;
     const offset = (page - 1) * limit;
