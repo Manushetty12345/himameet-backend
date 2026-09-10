@@ -199,8 +199,8 @@ CREATE TABLE call_billing_ticks (
 CREATE TABLE creator_settings (
     id                      BIGSERIAL PRIMARY KEY,
     user_id                 BIGINT NOT NULL UNIQUE REFERENCES users(id),
-    voice_rate_per_min      NUMERIC(6,2) DEFAULT 8.00,
-    video_rate_per_min      NUMERIC(6,2) DEFAULT 15.00,
+    voice_rate_per_min      NUMERIC(6,2) DEFAULT 10.00,
+    video_rate_per_min      NUMERIC(6,2) DEFAULT 20.00,
     chat_rate_per_msg       NUMERIC(6,2) DEFAULT 0,
     is_available             BOOLEAN DEFAULT TRUE
 );

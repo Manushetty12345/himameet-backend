@@ -54,8 +54,8 @@ exports.getCreators = async (req, res) => {
         a.avatar_url,
         u.is_online,
         COALESCE(u.is_new_creator, true) AS is_new,
-        COALESCE(cs.voice_rate_per_min, 8.00) AS voice_rate,
-        COALESCE(cs.video_rate_per_min, 15.00) AS video_rate,
+        cs.voice_rate_per_min AS voice_rate,
+        cs.video_rate_per_min AS video_rate,
         COALESCE(cs.is_voice_online, false) AS is_voice_online,
         COALESCE(cs.is_video_online, false) AS is_video_online
       FROM users u
@@ -79,11 +79,11 @@ exports.getCreators = async (req, res) => {
       is_online: row.is_voice_online === true || row.is_video_online === true,
       is_new: row.is_new === true,
       voice: {
-        rate_per_min: parseFloat(row.voice_rate),
+        rate_per_min: row.voice_rate ? parseFloat(row.voice_rate) : 10,
         status: row.is_voice_online === true ? 'available' : 'offline'
       },
       video: {
-        rate_per_min: parseFloat(row.video_rate),
+        rate_per_min: row.video_rate ? parseFloat(row.video_rate) : 20,
         status: row.is_video_online === true ? 'available' : 'offline'
       }
     }));

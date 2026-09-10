@@ -27,7 +27,7 @@ exports.getProfile = async (req, res) => {
     const creator = userRows[0];
 
     const [rateRows] = await pool.query(`SELECT voice_rate_per_min, video_rate_per_min FROM creator_settings WHERE user_id = $1`, [creatorId]);
-    const rates = rateRows.length > 0 ? rateRows[0] : { voice_rate_per_min: 8, video_rate_per_min: 15 };
+    const rates = rateRows.length > 0 ? rateRows[0] : { voice_rate_per_min: 10, video_rate_per_min: 20 };
 
     const [tagRows] = await pool.query(`
       SELECT t.name 
