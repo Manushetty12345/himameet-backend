@@ -43,11 +43,17 @@ exports.getVoiceSentence = async (req, res) => {
  * 3.3 Submit Creator Application (Voice KYC)
  */
 exports.submitApplication = async (req, res) => {
+  console.log("=== SUBMIT CREATOR APPLICATION STARTED ===");
+  console.log("Request Body:", req.body);
+  console.log("User:", req.user);
+
   const connection = await pool.getConnection();
   try {
     const userId = req.user.id;
     const { age, bio, sentence_id } = req.body;
     let interest_names = req.body.interest_names;
+
+    console.log(`Processing for User ID: ${userId}, Age: ${age}, Bio: ${bio}, Interests:`, interest_names);
 
     if (typeof interest_names === 'string') {
       try {
@@ -59,15 +65,18 @@ exports.submitApplication = async (req, res) => {
 
     // Temporarily made optional as per user request
     const voiceRecordingUrl = req.file ? '/uploads/voice_kyc/' + req.file.filename : null;
+    console.log("Voice Recording URL:", voiceRecordingUrl);
 
     await connection.beginTransaction();
 
+    console.log("Updating users table...");
     await connection.query(
       `UPDATE users SET age = $1, about_me = $2, user_role = 'creator' WHERE id = $3`,
       [age || null, bio || null, userId]
     );
 
     if (Array.isArray(interest_names) && interest_names.length > 0) {
+      console.log("Processing interests:", interest_names);
       await connection.query(`DELETE FROM user_tags WHERE user_id = $1`, [userId]);
       
       // Look up tag IDs by name (and create them if they don't exist? For now just look them up, or insert them)
@@ -85,6 +94,7 @@ exports.submitApplication = async (req, res) => {
       }
     }
 
+    console.log("Inserting creator_applications record...");
     await connection.query(
       `INSERT INTO creator_applications (user_id, status, sentence_id, voice_recording_url) 
        VALUES ($1, 'pending_review', $2, $3)
@@ -93,6 +103,7 @@ exports.submitApplication = async (req, res) => {
     );
 
     await connection.commit();
+    console.log("=== SUBMIT CREATOR APPLICATION SUCCESS ===");
 
     res.status(200).json({
       status: 'success',
@@ -104,7 +115,7 @@ exports.submitApplication = async (req, res) => {
 
   } catch (error) {
     await connection.rollback();
-    console.error('Error submitting application:', error);
+    console.error('=== Error submitting application ===', error);
     res.status(500).json({ status: 'error', message: 'Internal Server Error' });
   } finally {
     connection.release();
