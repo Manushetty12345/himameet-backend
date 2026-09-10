@@ -8,6 +8,18 @@ exports.getDashboardHome = async (req, res) => {
     const creatorId = req.user.id;
 
     const today = new Date().toISOString().split('T')[0];
+
+    // Ensure creator_settings table exists
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS creator_settings (
+        user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+        is_voice_online BOOLEAN DEFAULT false,
+        is_video_online BOOLEAN DEFAULT false,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+
     const [earningRows] = await pool.query(`
       SELECT SUM(coins) as total_coins 
       FROM coin_transactions 
@@ -65,25 +77,47 @@ exports.toggleStatus = async (req, res) => {
     const creatorId = req.user.id;
     const { call_type, is_online } = req.body;
 
+    console.log(`[toggleStatus] user=${creatorId}, call_type=${call_type}, is_online=${is_online}`);
+
     if (!['voice', 'video'].includes(call_type)) {
       return res.status(400).json({ status: 'error', message: 'Invalid call_type. Must be voice or video.' });
     }
 
-    const column = call_type === 'voice' ? 'is_voice_online' : 'is_video_online';
-    
-    // PostgreSQL uses ON CONFLICT instead of ON DUPLICATE KEY UPDATE
+    // Ensure the table exists
     await pool.query(`
-      INSERT INTO creator_settings (user_id, ${column}) 
-      VALUES ($1, $2) 
-      ON CONFLICT (user_id) DO UPDATE SET ${column} = $3
-    `, [creatorId, is_online ? true : false, is_online ? true : false]);
+      CREATE TABLE IF NOT EXISTS creator_settings (
+        user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+        is_voice_online BOOLEAN DEFAULT false,
+        is_video_online BOOLEAN DEFAULT false,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+
+    const value = is_online ? true : false;
+
+    if (call_type === 'voice') {
+      await pool.query(`
+        INSERT INTO creator_settings (user_id, is_voice_online, is_video_online)
+        VALUES ($1, $2, false)
+        ON CONFLICT (user_id) DO UPDATE SET is_voice_online = $2, updated_at = NOW()
+      `, [creatorId, value]);
+    } else {
+      await pool.query(`
+        INSERT INTO creator_settings (user_id, is_voice_online, is_video_online)
+        VALUES ($1, false, $2)
+        ON CONFLICT (user_id) DO UPDATE SET is_video_online = $2, updated_at = NOW()
+      `, [creatorId, value]);
+    }
+
+    console.log(`[toggleStatus] SUCCESS: ${call_type} => ${value}`);
 
     res.status(200).json({
       status: 'success',
       message: `${call_type === 'voice' ? 'Voice' : 'Video'} status updated to ${is_online ? 'Online' : 'Offline'}.`
     });
   } catch (error) {
-    console.error('Error toggling status:', error);
+    console.error('[toggleStatus] Error:', error);
     res.status(500).json({ status: 'error', message: 'Internal Server Error' });
   }
 };
