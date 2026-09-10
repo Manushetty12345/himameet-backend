@@ -29,13 +29,27 @@ module.exports = (io) => {
         );
         const callId = result[0].id;
         
+        // Fetch caller info
+        const [callerRows] = await pool.query(`
+          SELECT u.full_name AS name, a.avatar_url 
+          FROM users u 
+          LEFT JOIN avatars a ON u.avatar_id = a.id 
+          WHERE u.id = $1
+        `, [callerId]);
+
+        const callerName = callerRows.length > 0 ? callerRows[0].name : 'User';
+        const callerAvatar = callerRows.length > 0 ? callerRows[0].avatar_url : 'https://hima-bucket.s3.amazonaws.com/default-avatar.png';
+        
         socket.join(`call_${callId}`);
         
         // Let the receiver know
         io.to(`user_${targetId}`).emit('incoming_call', {
           callId,
           callerId,
-          type,
+          name: callerName,
+          avatar_url: callerAvatar,
+          call_type: type,
+          type, // keeping type for backwards compatibility just in case
           rate,
         });
       } catch (err) {
