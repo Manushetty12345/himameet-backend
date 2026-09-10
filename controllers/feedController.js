@@ -42,9 +42,9 @@ exports.getCreators = async (req, res) => {
       queryParams.push(filter);
     }
 
-    // 'new' filter
+    // 'new' filter - treat NULL as true (for creators created before column existed)
     if (filter === 'new') {
-      whereClauses.push(`u.is_new_creator = true`);
+      whereClauses.push(`COALESCE(u.is_new_creator, true) = true`);
     }
 
     const query = `
@@ -53,7 +53,7 @@ exports.getCreators = async (req, res) => {
         u.full_name AS name,
         a.avatar_url,
         u.is_online,
-        u.is_new_creator AS is_new,
+        COALESCE(u.is_new_creator, true) AS is_new,
         COALESCE(cs.voice_rate_per_min, 8.00) AS voice_rate,
         COALESCE(cs.video_rate_per_min, 15.00) AS video_rate,
         COALESCE(cs.is_voice_online, false) AS is_voice_online,
