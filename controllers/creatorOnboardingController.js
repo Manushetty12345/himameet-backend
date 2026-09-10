@@ -96,10 +96,10 @@ exports.submitApplication = async (req, res) => {
 
     console.log("Inserting creator_applications record...");
     await connection.query(
-      `INSERT INTO creator_applications (user_id, status, voice_recording_url) 
-       VALUES ($1, 'pending_review', $2)
-       ON CONFLICT (user_id) DO UPDATE SET status = 'pending_review', voice_recording_url = $3`,
-      [userId, voiceRecordingUrl, voiceRecordingUrl]
+      `INSERT INTO creator_applications (user_id, status) 
+       VALUES ($1, 'pending_review')
+       ON CONFLICT (user_id) DO UPDATE SET status = 'pending_review'`,
+      [userId]
     );
 
     await connection.commit();
