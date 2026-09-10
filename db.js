@@ -32,6 +32,17 @@ pool.connect()
       } else {
         console.log('✅ Database schema is already initialized.');
       }
+      
+      // Temporary fix: update existing 8/15 rates to 10/20
+      try {
+        await client.query(`
+          UPDATE creator_settings 
+          SET voice_rate_per_min = 10, video_rate_per_min = 20 
+          WHERE voice_rate_per_min = 8 OR video_rate_per_min = 15
+        `);
+      } catch (e) {
+        // ignore if table doesn't exist yet
+      }
     } catch (err) {
       console.error('❌ Error checking/initializing schema:', err.message);
     } finally {
