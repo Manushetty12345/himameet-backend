@@ -43,34 +43,6 @@ app.get('/reset-wallet', async (req, res) => {
   }
 });
 
-// TEMPORARY: Delete test user by phone number
-// Open in browser: https://himameet-backend.onrender.com/delete-test-user?phone=9110413284
-app.get('/delete-test-user', async (req, res) => {
-  try {
-    const phone = req.query.phone || '9110413284';
-    
-    // Find user
-    const [users] = await pool.query('SELECT id FROM users WHERE phone_number = $1', [phone]);
-    if (users.length === 0) {
-      return res.json({ message: `No user found with phone number ${phone}` });
-    }
-    
-    const userId = users[0].id;
-    
-    // Delete dependencies first
-    await pool.query('DELETE FROM creator_applications WHERE user_id = $1', [userId]);
-    await pool.query('DELETE FROM user_tags WHERE user_id = $1', [userId]);
-    await pool.query('DELETE FROM wallets WHERE user_id = $1', [userId]);
-    
-    // Finally delete user
-    await pool.query('DELETE FROM users WHERE id = $1', [userId]);
-    
-    res.json({ success: true, message: `Successfully deleted user with phone ${phone} (ID: ${userId})` });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
 // Serve static files from the 'public' folder (for avatars)
 const path = require('path');
 app.use('/public', express.static(path.join(__dirname, 'public')));
