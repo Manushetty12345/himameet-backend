@@ -51,12 +51,13 @@ exports.getCreators = async (req, res) => {
         u.is_new_creator AS is_new,
         COALESCE(cs.voice_rate_per_min, 8.00) AS voice_rate,
         COALESCE(cs.video_rate_per_min, 15.00) AS video_rate,
-        cs.is_available
+        COALESCE(cs.is_voice_online, false) AS is_voice_online,
+        COALESCE(cs.is_video_online, false) AS is_video_online
       FROM users u
       ${joinClauses}
       WHERE ${whereClauses.join(' AND ')}
-      GROUP BY u.id, a.avatar_url, cs.voice_rate_per_min, cs.video_rate_per_min, cs.is_available
-      ORDER BY u.is_online DESC, u.created_at DESC
+      GROUP BY u.id, a.avatar_url, cs.voice_rate_per_min, cs.video_rate_per_min, cs.is_voice_online, cs.is_video_online
+      ORDER BY cs.is_voice_online DESC, cs.is_video_online DESC, u.created_at DESC
       LIMIT $${paramIndex++} OFFSET $${paramIndex++}
     `;
     queryParams.push(limit, offset);
@@ -67,15 +68,15 @@ exports.getCreators = async (req, res) => {
       creator_id: row.creator_id,
       name: row.name,
       avatar_url: row.avatar_url || 'https://hima-bucket.s3.amazonaws.com/default-female.png',
-      is_online: row.is_online === true,
+      is_online: row.is_voice_online === true || row.is_video_online === true,
       is_new: row.is_new === true,
       voice: {
         rate_per_min: parseFloat(row.voice_rate),
-        status: row.is_available === true && row.is_online === true ? 'available' : 'offline'
+        status: row.is_voice_online === true ? 'available' : 'offline'
       },
       video: {
         rate_per_min: parseFloat(row.video_rate),
-        status: row.is_available === true && row.is_online === true ? 'available' : 'offline'
+        status: row.is_video_online === true ? 'available' : 'offline'
       }
     }));
 
