@@ -42,9 +42,9 @@ exports.getCreators = async (req, res) => {
       queryParams.push(filter);
     }
 
-    // 'new' filter - treat NULL as true (for creators created before column existed)
+    // 'new' filter - creators registered in the last 7 days
     if (filter === 'new') {
-      whereClauses.push(`COALESCE(u.is_new_creator, true) = true`);
+      whereClauses.push(`u.created_at >= NOW() - INTERVAL '7 days'`);
     }
 
     const query = `
@@ -53,7 +53,7 @@ exports.getCreators = async (req, res) => {
         u.full_name AS name,
         a.avatar_url,
         u.is_online,
-        COALESCE(u.is_new_creator, true) AS is_new,
+        (u.created_at >= NOW() - INTERVAL '7 days') AS is_new,
         cs.voice_rate_per_min AS voice_rate,
         cs.video_rate_per_min AS video_rate,
         COALESCE(cs.is_voice_online, false) AS is_voice_online,
