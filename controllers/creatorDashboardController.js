@@ -15,10 +15,12 @@ exports.getDashboardHome = async (req, res) => {
         user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
         is_voice_online BOOLEAN DEFAULT false,
         is_video_online BOOLEAN DEFAULT false,
-        created_at TIMESTAMP DEFAULT NOW(),
         updated_at TIMESTAMP DEFAULT NOW()
       )
     `);
+    // Add columns if they were missing from an older version of the table
+    await pool.query(`ALTER TABLE creator_settings ADD COLUMN IF NOT EXISTS is_voice_online BOOLEAN DEFAULT false`);
+    await pool.query(`ALTER TABLE creator_settings ADD COLUMN IF NOT EXISTS is_video_online BOOLEAN DEFAULT false`);
 
     const [earningRows] = await pool.query(`
       SELECT SUM(coins) as total_coins 
@@ -83,16 +85,19 @@ exports.toggleStatus = async (req, res) => {
       return res.status(400).json({ status: 'error', message: 'Invalid call_type. Must be voice or video.' });
     }
 
-    // Ensure the table exists
+    // Ensure table exists AND has the right columns (handles old schema too)
     await pool.query(`
       CREATE TABLE IF NOT EXISTS creator_settings (
         user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
         is_voice_online BOOLEAN DEFAULT false,
         is_video_online BOOLEAN DEFAULT false,
-        created_at TIMESTAMP DEFAULT NOW(),
         updated_at TIMESTAMP DEFAULT NOW()
       )
     `);
+    // Add columns if they were missing from an older version of the table
+    await pool.query(`ALTER TABLE creator_settings ADD COLUMN IF NOT EXISTS is_voice_online BOOLEAN DEFAULT false`);
+    await pool.query(`ALTER TABLE creator_settings ADD COLUMN IF NOT EXISTS is_video_online BOOLEAN DEFAULT false`);
+    await pool.query(`ALTER TABLE creator_settings ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW()`);
 
     const value = is_online ? true : false;
 
