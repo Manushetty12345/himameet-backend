@@ -1,4 +1,5 @@
 const pool = require('../db');
+const { sendCallNotification } = require('../utils/fcmService');
 
 // Call timers tracking: { callId: intervalId }
 const activeCallTimers = {};
@@ -49,9 +50,23 @@ module.exports = (io) => {
           name: callerName,
           avatar_url: callerAvatar,
           call_type: type,
-          type, // keeping type for backwards compatibility just in case
+          type,
           rate,
         });
+
+        // If the user is offline (no active socket in their room), send FCM push notification
+        const receiverRoom = io.sockets.adapter.rooms.get(`user_${targetId}`);
+        if (!receiverRoom || receiverRoom.size === 0) {
+          console.log(`[FCM] User ${targetId} is offline. Sending push notification...`);
+          sendCallNotification(targetId, {
+            callId,
+            callerId,
+            name: callerName,
+            avatar_url: callerAvatar,
+            call_type: type,
+            rate,
+          });
+        }
       } catch (err) {
         console.error('Error initiating call:', err);
       }

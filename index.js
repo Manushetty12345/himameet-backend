@@ -84,6 +84,19 @@ app.use('/api/call', callRoutes);
 app.use('/api/calls', callRoutes);
 app.use('/api/gifts', giftRoutes);
 
+// ── FCM Token: Save device token for push notifications ──
+const { protect: authProtect } = require('./middleware/authMiddleware');
+app.post('/api/user/fcm-token', authProtect, async (req, res) => {
+  try {
+    const { fcm_token } = req.body;
+    const userId = req.user.id;
+    if (!fcm_token) return res.status(400).json({ error: 'fcm_token is required' });
+    await pool.query('UPDATE users SET fcm_token = $1 WHERE id = $2', [fcm_token, userId]);
+    res.json({ success: true, message: 'FCM token saved' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
 // Setup WebSockets
 const io = setupChatSocket(server);
@@ -230,6 +243,11 @@ pool.query(`
     UNIQUE(blocker_id, blocked_id)
   )
 `).then(() => console.log('Blocked users table verified')).catch(console.error);
+
+// Add fcm_token column to users table if it doesn't exist
+pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS fcm_token TEXT`)
+  .then(() => console.log('fcm_token column verified'))
+  .catch(console.error);
 
 // Start Server
 server.listen(PORT, () => {
