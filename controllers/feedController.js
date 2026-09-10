@@ -16,10 +16,15 @@ exports.getCreators = async (req, res) => {
     const queryParams = [userId];
     let paramIndex = 2;
 
-    // Base WHERE: only show creators, match language of calling user
+    // Base WHERE: only show creators
+    // Language filter is soft: if male user or creator has no language set, still show them
     let whereClauses = [
       `u.user_role = 'creator'`,
-      `u.language_id = (SELECT language_id FROM users WHERE id = $1)`
+      `(
+        u.language_id = (SELECT language_id FROM users WHERE id = $1)
+        OR (SELECT language_id FROM users WHERE id = $1) IS NULL
+        OR u.language_id IS NULL
+      )`
     ];
 
     let joinClauses = `
@@ -63,6 +68,9 @@ exports.getCreators = async (req, res) => {
     queryParams.push(limit, offset);
 
     const [rows] = await pool.query(query, queryParams);
+
+    console.log(`[getCreators] user=${userId} filter=${filter} rows=${rows.length}`);
+    rows.forEach(r => console.log(`  creator=${r.creator_id} voice=${r.is_voice_online} video=${r.is_video_online}`));
 
     const formattedData = rows.map(row => ({
       creator_id: row.creator_id,
