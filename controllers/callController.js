@@ -95,34 +95,41 @@ exports.getHistory = async (req, res) => {
     const userId = req.user.id;
 
     const [rows] = await pool.query(`
-      SELECT 
-        c.id AS call_id,
-        u.id AS user_id,
-        u.full_name AS name,
-        a.avatar_url,
-        c.call_type,
-        c.status,
-        c.duration_seconds,
-        c.created_at AS timestamp
-      FROM call_logs c
-      JOIN users u ON (u.id = c.receiver_id OR u.id = c.caller_id) AND u.id != $1
-      LEFT JOIN avatars a ON u.avatar_id = a.id
-      WHERE c.caller_id = $2 OR c.receiver_id = $3
-      ORDER BY c.created_at DESC
-      LIMIT 50
-    `, [userId, userId, userId]);
+        SELECT 
+          c.id AS call_id,
+          u.id AS user_id,
+          u.full_name AS name,
+          u.is_online,
+          a.avatar_url,
+          c.call_type,
+          c.status,
+          c.duration_seconds,
+          c.created_at AS timestamp,
+          cs.voice_rate_per_min,
+          cs.video_rate_per_min
+        FROM call_logs c
+        JOIN users u ON (u.id = c.receiver_id OR u.id = c.caller_id) AND u.id != $1
+        LEFT JOIN avatars a ON u.avatar_id = a.id
+        LEFT JOIN creator_settings cs ON cs.user_id = u.id
+        WHERE c.caller_id = $2 OR c.receiver_id = $3
+        ORDER BY c.created_at DESC
+        LIMIT 50
+      `, [userId, userId, userId]);
 
     const formatted = rows.map(row => ({
       call_id: row.call_id,
-      user: {
-        id: row.user_id,
-        name: row.name,
-        avatar_url: row.avatar_url || 'https://hima-bucket.s3.amazonaws.com/default-female.png'
-      },
-      call_type: row.call_type,
-      status: row.status,
-      duration_seconds: row.duration_seconds,
-      timestamp: row.timestamp
+        user: {
+          id: row.user_id,
+          name: row.name,
+          avatar_url: row.avatar_url || 'https://hima-bucket.s3.amazonaws.com/default-female.png'
+        },
+        is_online: Boolean(row.is_online),
+        voice_rate: row.voice_rate_per_min,
+        video_rate: row.video_rate_per_min,
+        call_type: row.call_type,
+        status: row.status,
+        duration_seconds: row.duration_seconds,
+        timestamp: row.timestamp
     }));
 
     res.status(200).json({

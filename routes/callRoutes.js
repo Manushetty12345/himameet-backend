@@ -20,5 +20,6 @@ router.post('/:call_id/reject', protect, callController.rejectCall);
 // Call dynamic billing endpoints
 router.post('/gift', protect, callLogicController.sendGift);
 router.post('/heartbeat', protect, callLogicController.heartbeat);
+router.post('/feedback', protect, callLogicController.submitFeedback);
 
 module.exports = router;

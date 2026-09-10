@@ -47,21 +47,18 @@ exports.submitApplication = async (req, res) => {
   try {
     const userId = req.user.id;
     const { age, bio, sentence_id } = req.body;
-    let interest_ids = req.body.interest_ids;
+    let interest_names = req.body.interest_names;
 
-    if (typeof interest_ids === 'string') {
+    if (typeof interest_names === 'string') {
       try {
-        interest_ids = JSON.parse(interest_ids);
+        interest_names = JSON.parse(interest_names);
       } catch (e) {
-        interest_ids = interest_ids.split(',').map(id => parseInt(id.trim()));
+        interest_names = interest_names.split(',').map(name => name.trim());
       }
     }
 
-    if (!req.file) {
-      return res.status(400).json({ status: 'error', message: 'Voice recording is required' });
-    }
-
-    const voiceRecordingUrl = '/uploads/voice_kyc/' + req.file.filename;
+    // Temporarily made optional as per user request
+    const voiceRecordingUrl = req.file ? '/uploads/voice_kyc/' + req.file.filename : null;
 
     await connection.beginTransaction();
 
@@ -70,15 +67,22 @@ exports.submitApplication = async (req, res) => {
       [age || null, bio || null, userId]
     );
 
-    if (Array.isArray(interest_ids) && interest_ids.length > 0) {
+    if (Array.isArray(interest_names) && interest_names.length > 0) {
       await connection.query(`DELETE FROM user_tags WHERE user_id = $1`, [userId]);
       
-      // PostgreSQL bulk insert with unnest
-      const tagUserIds = interest_ids.map(() => userId);
-      await connection.query(
-        `INSERT INTO user_tags (user_id, tag_id) SELECT * FROM UNNEST($1::bigint[], $2::int[]) ON CONFLICT (user_id, tag_id) DO NOTHING`,
-        [tagUserIds, interest_ids]
-      );
+      // Look up tag IDs by name (and create them if they don't exist? For now just look them up, or insert them)
+      for (const name of interest_names) {
+        if (!name) continue;
+        let tagId;
+        const [existingTag] = await connection.query(`SELECT id FROM tags WHERE name = $1`, [name]);
+        if (existingTag.length > 0) {
+          tagId = existingTag[0].id;
+        } else {
+          const [newTag] = await connection.query(`INSERT INTO tags (name, tag_type) VALUES ($1, 'interest') RETURNING id`, [name]);
+          tagId = newTag[0].id;
+        }
+        await connection.query(`INSERT INTO user_tags (user_id, tag_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`, [userId, tagId]);
+      }
     }
 
     await connection.query(

@@ -72,3 +72,39 @@ exports.heartbeat = async (req, res) => {
     res.status(500).json({ status: 'error', message: 'Internal Server Error' });
   }
 };
+
+exports.submitFeedback = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { callId, creatorId, rating, likeText, comments } = req.body;
+
+    if (!creatorId || rating === undefined) {
+      return res.status(400).json({ status: 'error', message: 'creatorId and rating are required' });
+    }
+
+    // Ensure table exists
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS call_feedback (
+        id SERIAL PRIMARY KEY,
+        call_id INTEGER NULL,
+        user_id INTEGER NOT NULL,
+        creator_id INTEGER NOT NULL,
+        rating INTEGER NOT NULL CHECK (rating >= 1 AND rating <= 5),
+        like_text TEXT,
+        comments TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Insert feedback
+    await pool.query(`
+      INSERT INTO call_feedback (call_id, user_id, creator_id, rating, like_text, comments)
+      VALUES ($1, $2, $3, $4, $5, $6)
+    `, [callId || null, userId, creatorId, rating, likeText || '', comments || '']);
+
+    res.status(200).json({ status: 'success', message: 'Feedback submitted successfully' });
+  } catch (err) {
+    console.error('Error submitting feedback:', err);
+    res.status(500).json({ status: 'error', message: 'Internal Server Error' });
+  }
+};
