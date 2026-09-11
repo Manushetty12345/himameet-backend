@@ -102,12 +102,11 @@ app.post('/api/user/fcm-token', authProtect, async (req, res) => {
 // Open: https://himameet-backend.onrender.com/test-fcm
 app.get('/test-fcm', async (req, res) => {
   try {
-    // Simple query: get all female users with FCM token status
+    // Simple query: get all users with FCM token status
     const result = await pool.query(
-      `SELECT id, full_name, phone_number, gender,
+      `SELECT id, full_name, phone_number, gender, user_role,
               fcm_token IS NOT NULL as has_token
        FROM users
-       WHERE gender = 'female'
        ORDER BY id DESC
        LIMIT 20`
     );
@@ -120,7 +119,7 @@ app.get('/test-fcm', async (req, res) => {
     if (!targetUser) {
       return res.json({
         message: '❌ No female user has an FCM token yet. Female user must OPEN the app once so token gets saved.',
-        users: users.map(u => ({ id: u.id, name: u.full_name, phone: u.phone_number, has_fcm_token: u.has_token }))
+        users: users.map(u => ({ id: u.id, name: u.full_name, gender: u.gender, role: u.user_role, has_fcm_token: u.has_token }))
       });
     }
 
