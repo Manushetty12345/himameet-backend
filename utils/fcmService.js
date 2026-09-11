@@ -56,7 +56,6 @@ async function sendCallNotification(targetUserId, callData) {
       android: {
         priority: 'high',
         notification: {
-          channelId: 'incoming_calls',
           priority: 'max',
           defaultSound: true,
           defaultVibrateTimings: true,

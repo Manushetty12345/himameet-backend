@@ -98,6 +98,34 @@ app.post('/api/user/fcm-token', authProtect, async (req, res) => {
   }
 });
 
+// ── DEBUG: Check FCM token + send test notification ──
+// Open: https://himameet-backend.onrender.com/test-fcm?userId=FEMALE_USER_ID
+app.get('/test-fcm', async (req, res) => {
+  try {
+    const { userId } = req.query;
+    if (!userId) return res.json({ error: 'Pass ?userId=XXX in the URL' });
+    const result = await pool.query('SELECT id, username, fcm_token FROM users WHERE id = $1', [userId]);
+    if (!result.rows.length) return res.json({ error: 'User not found' });
+    const user = result.rows[0];
+    if (!user.fcm_token) {
+      return res.json({ userId: user.id, username: user.username, fcm_token: null, message: '❌ No FCM token — female user must open the app once so the token is saved!' });
+    }
+    // Try sending a test notification
+    const { sendCallNotification } = require('./utils/fcmService');
+    await sendCallNotification(user.id, {
+      callId: 9999,
+      callerId: 0,
+      name: 'Test Caller',
+      avatar_url: '',
+      call_type: 'audio',
+      rate: 0,
+    });
+    res.json({ userId: user.id, username: user.username, fcm_token_preview: user.fcm_token.substring(0, 20) + '...', message: '✅ Test notification sent! Check the phone.' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Setup WebSockets
 const io = setupChatSocket(server);
 app.set('io', io);
