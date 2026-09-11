@@ -104,7 +104,7 @@ app.get('/test-fcm', async (req, res) => {
   try {
     // Get all female/creator users with their FCM token status
     const result = await pool.query(`
-      SELECT u.id, u.username, u.full_name, u.gender,
+      SELECT u.id, u.full_name, u.phone_number, u.gender,
              CASE WHEN u.fcm_token IS NOT NULL THEN LEFT(u.fcm_token, 20) || '...' ELSE NULL END as fcm_token_preview,
              u.fcm_token IS NOT NULL as has_token
       FROM users u
@@ -121,7 +121,7 @@ app.get('/test-fcm', async (req, res) => {
     if (!targetUser) {
       return res.json({
         message: '❌ No female user has an FCM token yet. The female user must OPEN the app once (with the new build) so the token gets saved.',
-        users: users.map(u => ({ id: u.id, username: u.username, has_fcm_token: u.has_token }))
+        users: users.map(u => ({ id: u.id, name: u.full_name, phone: u.phone_number, has_fcm_token: u.has_token }))
       });
     }
 
@@ -138,8 +138,8 @@ app.get('/test-fcm', async (req, res) => {
     });
 
     res.json({
-      message: `✅ Test notification sent to ${targetUser.username} (ID: ${targetUser.id})! Check the phone now.`,
-      all_users: users.map(u => ({ id: u.id, username: u.username, has_fcm_token: u.has_token }))
+      message: `✅ Test notification sent to ${targetUser.full_name} (ID: ${targetUser.id})! Check the phone now.`,
+      all_users: users.map(u => ({ id: u.id, name: u.full_name, phone: u.phone_number, has_fcm_token: u.has_token }))
     });
   } catch (err) {
     res.status(500).json({ error: err.message, stack: err.stack });
