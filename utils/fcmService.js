@@ -44,22 +44,13 @@ async function sendCallNotification(targetUserId, callData) {
         type: 'incoming_call',
         callId: String(callData.callId),
         callerId: String(callData.callerId),
-        name: callData.name || 'User',
+        callerName: callData.name || 'User',
         avatar_url: callData.avatar_url || '',
-        call_type: callData.call_type || 'audio',
+        callType: callData.call_type || 'audio',
         rate: String(callData.rate || 0),
-      },
-      notification: {
-        title: `Incoming ${callTypeLabel} Call`,
-        body: `${callData.name || 'Someone'} is calling you`,
       },
       android: {
         priority: 'high',
-        notification: {
-          priority: 'max',
-          defaultSound: true,
-          defaultVibrateTimings: true,
-        },
       },
     };
 
