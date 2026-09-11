@@ -98,31 +98,51 @@ app.post('/api/user/fcm-token', authProtect, async (req, res) => {
   }
 });
 
-// ── DEBUG: Check FCM token + send test notification ──
-// Open: https://himameet-backend.onrender.com/test-fcm?userId=FEMALE_USER_ID
+// ── DEBUG: Auto-find female users + send test FCM notification ──
+// Open: https://himameet-backend.onrender.com/test-fcm
 app.get('/test-fcm', async (req, res) => {
   try {
-    const { userId } = req.query;
-    if (!userId) return res.json({ error: 'Pass ?userId=XXX in the URL' });
-    const result = await pool.query('SELECT id, username, fcm_token FROM users WHERE id = $1', [userId]);
-    if (!result.rows.length) return res.json({ error: 'User not found' });
-    const user = result.rows[0];
-    if (!user.fcm_token) {
-      return res.json({ userId: user.id, username: user.username, fcm_token: null, message: '❌ No FCM token — female user must open the app once so the token is saved!' });
+    // Get all female/creator users with their FCM token status
+    const result = await pool.query(`
+      SELECT u.id, u.username, u.full_name, u.gender,
+             CASE WHEN u.fcm_token IS NOT NULL THEN LEFT(u.fcm_token, 20) || '...' ELSE NULL END as fcm_token_preview,
+             u.fcm_token IS NOT NULL as has_token
+      FROM users u
+      WHERE u.gender = 'female' OR u.id IN (SELECT user_id FROM creator_profiles)
+      ORDER BY u.id DESC
+      LIMIT 20
+    `);
+
+    const users = result.rows;
+
+    // Find first user with FCM token to send test notification
+    const targetUser = users.find(u => u.has_token);
+
+    if (!targetUser) {
+      return res.json({
+        message: '❌ No female user has an FCM token yet. The female user must OPEN the app once (with the new build) so the token gets saved.',
+        users: users.map(u => ({ id: u.id, username: u.username, has_fcm_token: u.has_token }))
+      });
     }
-    // Try sending a test notification
+
+    // Send test notification to the first user that has a token
+    const fullUser = await pool.query('SELECT fcm_token FROM users WHERE id = $1', [targetUser.id]);
     const { sendCallNotification } = require('./utils/fcmService');
-    await sendCallNotification(user.id, {
+    await sendCallNotification(targetUser.id, {
       callId: 9999,
       callerId: 0,
-      name: 'Test Caller',
+      name: 'Test Male Caller',
       avatar_url: '',
       call_type: 'audio',
-      rate: 0,
+      rate: 10,
     });
-    res.json({ userId: user.id, username: user.username, fcm_token_preview: user.fcm_token.substring(0, 20) + '...', message: '✅ Test notification sent! Check the phone.' });
+
+    res.json({
+      message: `✅ Test notification sent to ${targetUser.username} (ID: ${targetUser.id})! Check the phone now.`,
+      all_users: users.map(u => ({ id: u.id, username: u.username, has_fcm_token: u.has_token }))
+    });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: err.message, stack: err.stack });
   }
 });
 
