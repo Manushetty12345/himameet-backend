@@ -120,6 +120,29 @@ app.get('/test-fcm', async (req, res) => {
   }
 });
 
+// ── Decline call via HTTP (used by notifee background handler) ──
+app.post('/api/calls/:callId/decline', async (req, res) => {
+  try {
+    const { callId } = req.params;
+    const ioInstance = req.app.get('io');
+
+    // Mark call as declined in DB
+    await pool.query("UPDATE call_logs SET status = 'declined' WHERE id = $1", [callId]);
+
+    // Notify the caller via socket if they're online
+    if (ioInstance) {
+      const [callRows] = await pool.query('SELECT caller_id FROM call_logs WHERE id = $1', [callId]);
+      if (callRows && callRows.length > 0) {
+        ioInstance.to(`user_${callRows[0].caller_id}`).emit('call_declined', { callId: parseInt(callId) });
+      }
+    }
+
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Setup WebSockets
 const io = setupChatSocket(server);
 app.set('io', io);
