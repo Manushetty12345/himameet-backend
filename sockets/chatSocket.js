@@ -26,11 +26,22 @@ module.exports = (server) => {
 
   io.use((socket, next) => {
     const token = socket.handshake.auth.token;
+    const fcmToken = socket.handshake.auth.fcmToken;
     if (!token) return next(new Error('Authentication error'));
     
-    jwt.verify(token, JWT_SECRET, (err, decoded) => {
+    jwt.verify(token, JWT_SECRET, async (err, decoded) => {
       if (err) return next(new Error('Authentication error'));
       socket.user = decoded;
+
+      // Save the latest FCM token directly when socket connects to guarantee it's never lost
+      if (fcmToken) {
+        try {
+          await pool.query('UPDATE users SET fcm_token = $1 WHERE id = $2', [fcmToken, decoded.id]);
+        } catch (dbErr) {
+          console.error('[Socket] Failed to save FCM token:', dbErr.message);
+        }
+      }
+
       next();
     });
   });
