@@ -102,31 +102,29 @@ app.post('/api/user/fcm-token', authProtect, async (req, res) => {
 // Open: https://himameet-backend.onrender.com/test-fcm
 app.get('/test-fcm', async (req, res) => {
   try {
-    // Get all female/creator users with their FCM token status
-    const result = await pool.query(`
-      SELECT u.id, u.full_name, u.phone_number, u.gender,
-             CASE WHEN u.fcm_token IS NOT NULL THEN LEFT(u.fcm_token, 20) || '...' ELSE NULL END as fcm_token_preview,
-             u.fcm_token IS NOT NULL as has_token
-      FROM users u
-      WHERE u.gender = 'female' OR u.id IN (SELECT user_id FROM creator_settings)
-      ORDER BY u.id DESC
-      LIMIT 20
-    `);
+    // Simple query: get all female users with FCM token status
+    const result = await pool.query(
+      `SELECT id, full_name, phone_number, gender,
+              fcm_token IS NOT NULL as has_token
+       FROM users
+       WHERE gender = 'female'
+       ORDER BY id DESC
+       LIMIT 20`
+    );
 
-    const users = result.rows;
+    const users = result.rows || [];
 
-    // Find first user with FCM token to send test notification
+    // Find first user with FCM token
     const targetUser = users.find(u => u.has_token);
 
     if (!targetUser) {
       return res.json({
-        message: '❌ No female user has an FCM token yet. The female user must OPEN the app once (with the new build) so the token gets saved.',
+        message: '❌ No female user has an FCM token yet. Female user must OPEN the app once so token gets saved.',
         users: users.map(u => ({ id: u.id, name: u.full_name, phone: u.phone_number, has_fcm_token: u.has_token }))
       });
     }
 
-    // Send test notification to the first user that has a token
-    const fullUser = await pool.query('SELECT fcm_token FROM users WHERE id = $1', [targetUser.id]);
+    // Send test notification
     const { sendCallNotification } = require('./utils/fcmService');
     await sendCallNotification(targetUser.id, {
       callId: 9999,
