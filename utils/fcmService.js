@@ -20,17 +20,17 @@ if (!admin.apps.length) {
  */
 async function sendCallNotification(targetUserId, callData) {
   try {
-    const result = await pool.query(
+    const [rows] = await pool.query(
       'SELECT fcm_token FROM users WHERE id = $1',
       [targetUserId]
     );
 
-    if (!result.rows || result.rows.length === 0) {
+    if (!rows || rows.length === 0) {
       console.log(`[FCM] No user found for ID ${targetUserId}`);
       return;
     }
 
-    const fcmToken = result.rows[0].fcm_token;
+    const fcmToken = rows[0].fcm_token;
     if (!fcmToken) {
       console.log(`[FCM] No FCM token for user ${targetUserId} — they are truly offline`);
       return;

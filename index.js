@@ -101,14 +101,13 @@ app.post('/api/user/fcm-token', authProtect, async (req, res) => {
 // ── DEBUG: FCM Test endpoint ──
 app.get('/test-fcm', async (req, res) => {
   try {
-    const version = 'v6-' + new Date().toISOString();
-    // Get ALL users - no filter at all
-    const result = await pool.query('SELECT id, full_name, gender, user_role, (fcm_token IS NOT NULL) as has_token FROM users ORDER BY id DESC LIMIT 20');
-    const users = result.rows;
-    const withToken = users.find(u => u.has_token);
+    const version = 'v7-' + new Date().toISOString();
+    // pool.query returns [rows, fields] per db.js
+    const [users] = await pool.query('SELECT id, full_name, gender, user_role, (fcm_token IS NOT NULL) as has_token FROM users ORDER BY id DESC LIMIT 20');
+    const withToken = (users || []).find(u => u.has_token);
 
     if (!withToken) {
-      return res.json({ version, message: 'No user has FCM token yet. Open the app first!', total_users: users.length, users });
+      return res.json({ version, message: 'No user has FCM token yet. Open the app first!', total_users: (users || []).length, users: users || [] });
     }
 
     const { sendCallNotification } = require('./utils/fcmService');
