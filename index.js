@@ -108,7 +108,7 @@ app.get('/test-fcm', async (req, res) => {
              CASE WHEN u.fcm_token IS NOT NULL THEN LEFT(u.fcm_token, 20) || '...' ELSE NULL END as fcm_token_preview,
              u.fcm_token IS NOT NULL as has_token
       FROM users u
-      WHERE u.gender = 'female' OR u.id IN (SELECT user_id FROM creator_profiles)
+      WHERE u.gender = 'female' OR u.id IN (SELECT user_id FROM creator_settings)
       ORDER BY u.id DESC
       LIMIT 20
     `);
