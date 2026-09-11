@@ -98,48 +98,26 @@ app.post('/api/user/fcm-token', authProtect, async (req, res) => {
   }
 });
 
-// ── DEBUG: Auto-find female users + send test FCM notification ──
-// Open: https://himameet-backend.onrender.com/test-fcm
+// ── DEBUG: FCM Test endpoint ──
 app.get('/test-fcm', async (req, res) => {
   try {
-    // Simple query: get all users with FCM token status
-    const result = await pool.query(
-      `SELECT id, full_name, phone_number, gender, user_role,
-              fcm_token IS NOT NULL as has_token
-       FROM users
-       ORDER BY id DESC
-       LIMIT 20`
-    );
+    const version = 'v6-' + new Date().toISOString();
+    // Get ALL users - no filter at all
+    const result = await pool.query('SELECT id, full_name, gender, user_role, (fcm_token IS NOT NULL) as has_token FROM users ORDER BY id DESC LIMIT 20');
+    const users = result.rows;
+    const withToken = users.find(u => u.has_token);
 
-    const users = result.rows || [];
-
-    // Find first user with FCM token
-    const targetUser = users.find(u => u.has_token);
-
-    if (!targetUser) {
-      return res.json({
-        message: '❌ No female user has an FCM token yet. Female user must OPEN the app once so token gets saved.',
-        users: users.map(u => ({ id: u.id, name: u.full_name, gender: u.gender, role: u.user_role, has_fcm_token: u.has_token }))
-      });
+    if (!withToken) {
+      return res.json({ version, message: 'No user has FCM token yet. Open the app first!', total_users: users.length, users });
     }
 
-    // Send test notification
     const { sendCallNotification } = require('./utils/fcmService');
-    await sendCallNotification(targetUser.id, {
-      callId: 9999,
-      callerId: 0,
-      name: 'Test Male Caller',
-      avatar_url: '',
-      call_type: 'audio',
-      rate: 10,
+    await sendCallNotification(withToken.id, {
+      callId: 9999, callerId: 0, name: 'Test Caller', avatar_url: '', call_type: 'audio', rate: 10,
     });
-
-    res.json({
-      message: `✅ Test notification sent to ${targetUser.full_name} (ID: ${targetUser.id})! Check the phone now.`,
-      all_users: users.map(u => ({ id: u.id, name: u.full_name, phone: u.phone_number, has_fcm_token: u.has_token }))
-    });
+    res.json({ version, message: `✅ Notification sent to ${withToken.full_name} (ID: ${withToken.id})!`, total_users: users.length, all_users: users });
   } catch (err) {
-    res.status(500).json({ error: err.message, stack: err.stack });
+    res.status(500).json({ error: err.message });
   }
 });
 
