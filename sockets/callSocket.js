@@ -134,6 +134,31 @@ module.exports = (io) => {
       }
     });
 
+    // When app is killed/closed, mark creator unavailable so male sees correct status
+    socket.on('disconnect', async () => {
+      try {
+        const userId = socket.user?.id;
+        if (!userId) return;
+
+        // Update creator_settings to mark both voice + video as unavailable
+        await pool.query(
+          `UPDATE creator_settings SET is_voice_online = false, is_video_online = false WHERE user_id = $1`,
+          [userId]
+        );
+
+        // Notify all connected users that this creator is now offline
+        io.emit('creator_availability_changed', {
+          userId,
+          voiceAvailable: false,
+          videoAvailable: false,
+        });
+
+        console.log(`[Socket] Creator ${userId} marked unavailable on disconnect`);
+      } catch (err) {
+        // Not a creator — that's fine, ignore
+      }
+    });
+
   });
 };
 

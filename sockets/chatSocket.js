@@ -107,8 +107,20 @@ module.exports = (server) => {
       io.to(`chat_${conversationId}`).emit('chat_ended', { message: 'The other user left the chat.' });
     });
 
-    socket.on('disconnect', () => {
+    socket.on('disconnect', async () => {
       console.log(`User disconnected: ${socket.user.id}`);
+      try {
+        // Mark user as offline in DB
+        await pool.query(
+          'UPDATE users SET is_online = false, last_seen_at = NOW() WHERE id = $1',
+          [socket.user.id]
+        );
+        // Broadcast to everyone that this user went offline
+        io.emit('user_offline', { userId: socket.user.id });
+        console.log(`[Socket] User ${socket.user.id} marked offline`);
+      } catch (err) {
+        console.error('[Socket] Failed to mark user offline:', err.message);
+      }
     });
   });
 
