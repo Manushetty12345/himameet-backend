@@ -196,6 +196,7 @@ exports.getMissedCalls = async (req, res) => {
       LEFT JOIN avatars a ON u.avatar_id = a.id
       WHERE c.receiver_id = $1 
         AND c.status IN ('missed', 'rejected')
+        AND (c.receiver_deleted IS NULL OR c.receiver_deleted = false)
       ORDER BY c.created_at DESC
     `, [userId]);
 
@@ -215,6 +216,29 @@ exports.getMissedCalls = async (req, res) => {
     });
   } catch (error) {
     console.error('Error fetching missed calls:', error);
+    res.status(500).json({ status: 'error', message: 'Internal Server Error' });
+  }
+};
+
+/**
+ * 9.3 Delete (Hide) Missed Call for Receiver
+ */
+exports.deleteMissedCall = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const callId = req.params.id;
+
+    // We only soft-delete for the receiver
+    await pool.query(
+      `UPDATE call_logs 
+       SET receiver_deleted = true 
+       WHERE id = $1 AND receiver_id = $2`,
+      [callId, userId]
+    );
+
+    res.status(200).json({ status: 'success', message: 'Missed call deleted from history.' });
+  } catch (error) {
+    console.error('Error deleting missed call:', error);
     res.status(500).json({ status: 'error', message: 'Internal Server Error' });
   }
 };

@@ -20,6 +20,13 @@ pool.connect()
     console.log('DEBUG SSL option used:', (connectionString && connectionString.includes('.render.com')) ? 'rejectUnauthorized: false' : 'false');
     
     try {
+      await client.query('ALTER TABLE call_logs ADD COLUMN IF NOT EXISTS receiver_deleted BOOLEAN DEFAULT false');
+      console.log('✅ Migration: ensured receiver_deleted column exists');
+    } catch (e) {
+      console.error('Error running migration:', e);
+    }
+    
+    try {
       // Auto-initialize schema if it doesn't exist
       const res = await client.query("SELECT to_regclass('public.users');");
       if (!res.rows[0].to_regclass) {

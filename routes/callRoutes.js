@@ -16,6 +16,7 @@ router.get('/history', protect, callController.getHistory);
 
 // 9.2 Get Missed Calls
 router.get('/missed', protect, callController.getMissedCalls);
+router.delete('/missed/:id', protect, callController.deleteMissedCall);
 
 router.post('/:call_id/accept', protect, callController.acceptCall);
 router.post('/:call_id/reject', protect, callController.rejectCall);
