@@ -56,6 +56,14 @@ exports.getFriends = async (req, res) => {
         END AS is_online,
         cs.voice_rate_per_min AS voice_rate,
         cs.video_rate_per_min AS video_rate,
+        (
+          SELECT m.message_text 
+          FROM conversations c 
+          JOIN messages m ON c.last_message_id = m.id 
+          WHERE (c.user_one_id = u.id AND c.user_two_id = $1) 
+             OR (c.user_one_id = $1 AND c.user_two_id = u.id)
+          LIMIT 1
+        ) AS "lastMessage",
         'friend' AS status
       FROM friendships f
       JOIN users u ON (u.id = f.user_one_id OR u.id = f.user_two_id) AND u.id != $1
@@ -68,7 +76,8 @@ exports.getFriends = async (req, res) => {
       ...row,
       avatar_url: row.avatar_url || 'https://hima-bucket.s3.amazonaws.com/default-avatar.png',
       voice: { rate_per_min: row.voice_rate },
-      video: { rate_per_min: row.video_rate }
+      video: { rate_per_min: row.video_rate },
+      lastMessage: row.lastMessage
     }));
 
     res.status(200).json({
@@ -95,6 +104,14 @@ exports.getFavourites = async (req, res) => {
         END AS is_online,
         cs.voice_rate_per_min AS voice_rate,
         cs.video_rate_per_min AS video_rate,
+        (
+          SELECT m.message_text 
+          FROM conversations c 
+          JOIN messages m ON c.last_message_id = m.id 
+          WHERE (c.user_one_id = u.id AND c.user_two_id = $1) 
+             OR (c.user_one_id = $1 AND c.user_two_id = u.id)
+          LIMIT 1
+        ) AS "lastMessage",
         'favourite' AS status
       FROM favourite_friends ff
       JOIN users u ON u.id = ff.friend_id
@@ -106,7 +123,8 @@ exports.getFavourites = async (req, res) => {
       ...row, 
       avatar_url: row.avatar_url || 'https://hima-bucket.s3.amazonaws.com/default-avatar.png',
       voice: { rate_per_min: row.voice_rate },
-      video: { rate_per_min: row.video_rate }
+      video: { rate_per_min: row.video_rate },
+      lastMessage: row.lastMessage
     }));
     res.status(200).json({ status: 'success', data: formattedData });
   } catch (error) {
