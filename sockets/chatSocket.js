@@ -43,7 +43,7 @@ module.exports = (server) => {
       if (!fcmToken) return;
       try {
         await pool.query('UPDATE users SET fcm_token = $1 WHERE id = $2', [fcmToken, socket.user.id]);
-        console.log(`[Socket] Saved FCM token for user ${socket.user.id}`);
+        console.log(`[Socket] Saved FCM token for user ${socket.user.id}: ${fcmToken.substring(0, 15)}...`);
       } catch (dbErr) {
         console.error('[Socket] Failed to save FCM token:', dbErr.message);
       }

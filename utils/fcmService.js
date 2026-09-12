@@ -25,6 +25,8 @@ async function sendCallNotification(targetUserId, callData) {
       [targetUserId]
     );
 
+    console.log(`[FCM] DB lookup for user ${targetUserId}:`, JSON.stringify(rows));
+
     if (!rows || rows.length === 0) {
       console.log(`[FCM] No user found for ID ${targetUserId}`);
       return;
@@ -32,9 +34,11 @@ async function sendCallNotification(targetUserId, callData) {
 
     const fcmToken = rows[0].fcm_token;
     if (!fcmToken) {
-      console.log(`[FCM] No FCM token for user ${targetUserId} — they are truly offline`);
+      console.log(`[FCM] No FCM token for user ${targetUserId} (Value: ${fcmToken}) — they are truly offline`);
       return;
     }
+    
+    console.log(`[FCM] Found token for user ${targetUserId}: ${fcmToken.substring(0, 15)}...`);
 
     const callTypeLabel = callData.call_type === 'video' ? 'Video' : 'Voice';
 
