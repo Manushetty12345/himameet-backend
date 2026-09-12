@@ -35,8 +35,15 @@ module.exports = (server) => {
     });
   });
 
-  io.on('connection', (socket) => {
+  io.on('connection', async (socket) => {
     console.log(`User connected: ${socket.user.id}`);
+    
+    try {
+      await pool.query('UPDATE users SET is_online = true WHERE id = $1', [socket.user.id]);
+      io.emit('user_online', { userId: socket.user.id });
+    } catch (err) {
+      console.error('[Socket] Failed to mark user online:', err.message);
+    }
 
     // Asynchronously save the FCM token when the frontend pushes it
     socket.on('update_fcm_token', async (fcmToken) => {
