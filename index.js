@@ -120,6 +120,20 @@ app.get('/test-fcm', async (req, res) => {
   }
 });
 
+// ── DEBUG: Test Rates endpoint ──
+app.get('/test-rates', async (req, res) => {
+  try {
+    const [rows] = await pool.query(`
+      SELECT u.id, u.full_name, cs.voice_rate_per_min, cs.video_rate_per_min 
+      FROM users u 
+      JOIN creator_settings cs ON u.id = cs.user_id
+    `);
+    res.json({ success: true, count: rows.length, creators: rows });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ── Decline call via HTTP (used by notifee background handler) ──
 app.post('/api/calls/:callId/decline', async (req, res) => {
   try {
