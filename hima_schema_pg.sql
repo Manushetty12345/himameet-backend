@@ -445,3 +445,16 @@ CREATE TABLE withdrawal_requests (
 CREATE INDEX idx_withdrawals_user ON withdrawal_requests(user_id);
 CREATE INDEX idx_withdrawals_status ON withdrawal_requests(status);
 
+-- ============================================================
+-- App Settings (admin configurable key-value store)
+-- ============================================================
+CREATE TABLE settings (
+    key         VARCHAR(100) PRIMARY KEY,
+    value       TEXT NOT NULL,
+    description TEXT,
+    updated_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Default payout rate: 10 coins = ₹1 (female earns ₹1 per 10 coins)
+INSERT INTO settings (key, value, description) VALUES
+    ('coins_per_rupee', '10', 'Number of coins a creator needs to earn ₹1. Formula: rupees = coins / coins_per_rupee');

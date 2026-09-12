@@ -33,6 +33,29 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', message: 'Hima Backend is running' });
 });
 
+// TEMPORARY: Seed settings table into DB
+app.get('/seed-settings', async (req, res) => {
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS settings (
+        key         VARCHAR(100) PRIMARY KEY,
+        value       TEXT NOT NULL,
+        description TEXT,
+        updated_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    await pool.query(`
+      INSERT INTO settings (key, value, description) VALUES
+        ('coins_per_rupee', '10', '10 coins = ₹1. Formula: rupees = coins / 10')
+      ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()
+    `);
+    const [rows] = await pool.query(`SELECT * FROM settings`);
+    res.json({ status: 'success', message: 'Settings table created and seeded!', data: rows });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // TEMPORARY: View coin packages
 app.get('/packages', async (req, res) => {
   try {
