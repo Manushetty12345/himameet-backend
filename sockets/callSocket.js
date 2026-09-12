@@ -1,5 +1,9 @@
 const pool = require('../db');
 const { sendCallNotification } = require('../utils/fcmService');
+const { RtcTokenBuilder, RtcRole } = require('agora-access-token');
+
+const AGORA_APP_ID = process.env.AGORA_APP_ID;
+const AGORA_APP_CERTIFICATE = process.env.AGORA_APP_CERTIFICATE;
 
 // Call timers tracking: { callId: intervalId }
 const activeCallTimers = {};
@@ -29,6 +33,18 @@ module.exports = (io) => {
           [callerId, targetId, type, rate]
         );
         const callId = result[0].id;
+        
+        const channelName = `call_${callId}`;
+        const uid = 0;
+        const role = RtcRole.PUBLISHER;
+        const expirationTimeInSeconds = 3600;
+        const currentTimestamp = Math.floor(Date.now() / 1000);
+        const privilegeExpiredTs = currentTimestamp + expirationTimeInSeconds;
+
+        let agoraToken = '';
+        if (AGORA_APP_ID && AGORA_APP_CERTIFICATE) {
+          agoraToken = RtcTokenBuilder.buildTokenWithUid(AGORA_APP_ID, AGORA_APP_CERTIFICATE, channelName, uid, role, privilegeExpiredTs);
+        }
 
         // Fetch caller info
         const [callerRows] = await pool.query(`
@@ -41,7 +57,7 @@ module.exports = (io) => {
         const callerName = callerRows.length > 0 ? callerRows[0].name : 'User';
         const callerAvatar = callerRows.length > 0 ? callerRows[0].avatar_url : 'https://hima-bucket.s3.amazonaws.com/default-avatar.png';
 
-        socket.join(`call_${callId}`);
+        socket.join(channelName);
 
         // Let the receiver know
         io.to(`user_${targetId}`).emit('incoming_call', {
@@ -52,6 +68,7 @@ module.exports = (io) => {
           call_type: type,
           type,
           rate,
+          agoraToken,
         });
 
         // If the user is offline (no active socket in their room), send FCM push notification
@@ -94,12 +111,29 @@ module.exports = (io) => {
 
     socket.on('accept_call', async (data) => {
       const { callId, callerId } = data;
-      socket.join(`call_${callId}`);
+      const receiverId = socket.user.id;
 
-      activeUsersInCall.add(String(socket.user.id));
+      const channelName = `call_${callId}`;
+      const uid = 0;
+      const role = RtcRole.PUBLISHER;
+      const expirationTimeInSeconds = 3600;
+      const currentTimestamp = Math.floor(Date.now() / 1000);
+      const privilegeExpiredTs = currentTimestamp + expirationTimeInSeconds;
+
+      let agoraToken = '';
+      if (AGORA_APP_ID && AGORA_APP_CERTIFICATE) {
+        agoraToken = RtcTokenBuilder.buildTokenWithUid(AGORA_APP_ID, AGORA_APP_CERTIFICATE, channelName, uid, role, privilegeExpiredTs);
+      }
+
+      await pool.query(
+        `UPDATE call_logs SET status = 'in_progress', started_at = NOW(), agora_token = $1, agora_channel_name = $2 WHERE id = $3`,
+        [agoraToken, channelName, callId]
+      );
+
       activeUsersInCall.add(String(callerId));
+      activeUsersInCall.add(String(receiverId));
 
-      io.to(`user_${callerId}`).emit('call_accepted', { callId });
+      io.to(`user_${callerId}`).emit('call_accepted', { callId, agoraToken });
     });
 
     socket.on('decline_call', async (data) => {
