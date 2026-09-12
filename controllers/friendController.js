@@ -51,14 +51,14 @@ exports.getFriends = async (req, res) => {
         u.full_name AS name, 
         a.avatar_url,
         CASE 
-          WHEN u.user_role = 'creator' THEN (cp.is_voice_online = true OR cp.is_video_online = true)
+          WHEN u.user_role = 'creator' THEN (cs.is_voice_online = true OR cs.is_video_online = true)
           ELSE u.is_online 
         END AS is_online,
         'friend' AS status
       FROM friendships f
       JOIN users u ON (u.id = f.user_one_id OR u.id = f.user_two_id) AND u.id != $1
       LEFT JOIN avatars a ON u.avatar_id = a.id
-      LEFT JOIN creator_profiles cp ON cp.user_id = u.id
+      LEFT JOIN creator_settings cs ON cs.user_id = u.id
       WHERE f.user_one_id = $2 OR f.user_two_id = $3
     `, [userId, userId, userId]);
 
@@ -86,14 +86,14 @@ exports.getFavourites = async (req, res) => {
         u.full_name AS name, 
         a.avatar_url, 
         CASE 
-          WHEN u.user_role = 'creator' THEN (cp.is_voice_online = true OR cp.is_video_online = true)
+          WHEN u.user_role = 'creator' THEN (cs.is_voice_online = true OR cs.is_video_online = true)
           ELSE u.is_online 
         END AS is_online,
         'favourite' AS status
       FROM favourite_friends ff
       JOIN users u ON u.id = ff.friend_id
       LEFT JOIN avatars a ON u.avatar_id = a.id
-      LEFT JOIN creator_profiles cp ON cp.user_id = u.id
+      LEFT JOIN creator_settings cs ON cs.user_id = u.id
       WHERE ff.user_id = $1
     `, [userId]);
     const formattedData = rows.map(row => ({
