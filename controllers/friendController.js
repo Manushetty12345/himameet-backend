@@ -50,15 +50,22 @@ exports.getFriends = async (req, res) => {
         u.id AS user_id, 
         u.full_name AS name, 
         a.avatar_url,
-        CASE 
-          WHEN u.user_role = 'creator' THEN (cs.is_voice_online = true OR cs.is_video_online = true)
-          ELSE u.is_online 
-        END AS is_online,
+        u.is_online,
+        u.last_seen_at,
+        cs.is_voice_online,
+        cs.is_video_online,
         cs.voice_rate_per_min AS voice_rate,
         cs.video_rate_per_min AS video_rate,
         m.message_text AS "lastMessage",
         m.status AS "lastMessageStatus",
         m.sender_id AS "lastMessageSenderId",
+        m.created_at AS "lastMessageTime",
+        c.id AS conversation_id,
+        (SELECT COUNT(m2.id) 
+         FROM messages m2 
+         WHERE m2.conversation_id = c.id 
+           AND m2.sender_id != $1 
+           AND m2.status IN ('sent', 'delivered')) AS unread_count,
         'friend' AS status
       FROM friendships f
       JOIN users u ON (u.id = f.user_one_id OR u.id = f.user_two_id) AND u.id != $1
@@ -72,17 +79,25 @@ exports.getFriends = async (req, res) => {
     const formattedData = rows.map(row => ({
       ...row,
       avatar_url: row.avatar_url || 'https://hima-bucket.s3.amazonaws.com/default-avatar.png',
+      isOnline: row.is_online,
+      isVoiceOnline: row.is_voice_online,
+      isVideoOnline: row.is_video_online,
       voice: { rate_per_min: row.voice_rate },
       video: { rate_per_min: row.video_rate },
       lastMessage: row.lastMessage,
       lastMessageStatus: row.lastMessageStatus,
-      lastMessageSenderId: row.lastMessageSenderId
+      lastMessageSenderId: row.lastMessageSenderId,
+      lastMessageTime: row.lastMessageTime,
+      lastSeen: row.last_seen_at,
+      conversationId: row.conversation_id,
+      unreadCount: row.unread_count
     }));
 
     res.status(200).json({
       status: 'success',
       data: formattedData
     });
+    console.log('FRIENDS LIST:', formattedData.map(f => ({ id: f.user_id, unread: f.unreadCount, cId: f.conversationId })));
   } catch (error) {
     console.error('Error fetching friends:', error);
     res.status(500).json({ status: 'error', message: 'Internal Server Error' });
@@ -97,10 +112,10 @@ exports.getFavourites = async (req, res) => {
         u.id AS user_id, 
         u.full_name AS name, 
         a.avatar_url, 
-        CASE 
-          WHEN u.user_role = 'creator' THEN (cs.is_voice_online = true OR cs.is_video_online = true)
-          ELSE u.is_online 
-        END AS is_online,
+        u.is_online,
+        u.last_seen_at,
+        cs.is_voice_online,
+        cs.is_video_online,
         cs.voice_rate_per_min AS voice_rate,
         cs.video_rate_per_min AS video_rate,
         m.message_text AS "lastMessage",
@@ -118,6 +133,9 @@ exports.getFavourites = async (req, res) => {
     const formattedData = rows.map(row => ({
       ...row, 
       avatar_url: row.avatar_url || 'https://hima-bucket.s3.amazonaws.com/default-avatar.png',
+      isOnline: row.is_online,
+      isVoiceOnline: row.is_voice_online,
+      isVideoOnline: row.is_video_online,
       voice: { rate_per_min: row.voice_rate },
       video: { rate_per_min: row.video_rate },
       lastMessage: row.lastMessage,

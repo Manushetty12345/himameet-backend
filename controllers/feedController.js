@@ -53,6 +53,7 @@ exports.getCreators = async (req, res) => {
         u.full_name AS name,
         a.avatar_url,
         u.is_online,
+        u.last_seen_at,
         (u.created_at >= NOW() - INTERVAL '7 days') AS is_new,
         cs.voice_rate_per_min AS voice_rate,
         cs.video_rate_per_min AS video_rate,

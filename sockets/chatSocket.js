@@ -71,7 +71,8 @@ module.exports = (server) => {
     });
 
     socket.on('send_message', async (data) => {
-      const { conversationId, messageText, messageType } = data;
+      const { conversationId: rawConversationId, messageText, messageType } = data;
+      const conversationId = parseInt(rawConversationId, 10);
       const senderId = socket.user.id;
 
       try {
@@ -85,14 +86,25 @@ module.exports = (server) => {
           [result[0].id, conversationId]
         );
 
-        io.to(`chat_${conversationId}`).emit('receive_message', {
+        const [[conv]] = await pool.query(`SELECT user_one_id, user_two_id FROM conversations WHERE id = $1`, [conversationId]);
+        
+        const payload = {
           message_id: result[0].id,
+          conversation_id: conversationId,
           sender_id: senderId,
           content: messageText,
           message_type: messageType || 'text',
           status: 'sent',
           timestamp: new Date()
-        });
+        };
+
+        io.to(`chat_${conversationId}`).emit('receive_message', payload);
+
+        if (conv) {
+          const targetId = Number(conv.user_one_id) === Number(senderId) ? conv.user_two_id : conv.user_one_id;
+          console.log(`[new_message_alert] senderId=${senderId}, user_one=${conv.user_one_id}, user_two=${conv.user_two_id}, emitting to user_${targetId}`);
+          io.to(`user_${targetId}`).emit('new_message_alert', payload);
+        }
       } catch (err) {
         console.error('Error saving message:', err);
       }
@@ -115,6 +127,20 @@ module.exports = (server) => {
         io.to(`chat_${conversationId}`).emit('message_status_update', { message_id: messageId, status: 'read' });
       } catch (err) {
         console.error('Error updating to read:', err);
+      }
+    });
+
+    socket.on('typing_started', (data) => {
+      const { targetId } = data;
+      if (targetId) {
+        io.to(`user_${targetId}`).emit('user_typing', { userId: socket.user.id });
+      }
+    });
+
+    socket.on('typing_stopped', (data) => {
+      const { targetId } = data;
+      if (targetId) {
+        io.to(`user_${targetId}`).emit('user_stopped_typing', { userId: socket.user.id });
       }
     });
 

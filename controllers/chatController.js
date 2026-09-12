@@ -88,9 +88,19 @@ exports.getOrCreateConversation = async (req, res) => {
       conversationId = insertRes[0].id;
     }
 
+    const [userRows] = await pool.query(`
+      SELECT is_online, last_seen_at FROM users WHERE id = $1
+    `, [targetUserId]);
+    
+    const targetUserStatus = userRows.length > 0 ? userRows[0] : { is_online: false, last_seen_at: null };
+
     res.status(200).json({
       status: 'success',
-      data: { conversation_id: conversationId }
+      data: { 
+        conversation_id: conversationId,
+        is_online: targetUserStatus.is_online,
+        last_seen_at: targetUserStatus.last_seen_at
+      }
     });
   } catch (error) {
     console.error('Error getting/creating conversation:', error);
