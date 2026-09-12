@@ -119,6 +119,42 @@ module.exports = (io) => {
       }
     });
 
+    socket.on('cancel_call', async (data) => {
+      const { targetId } = data;
+      const callerId = socket.user.id;
+      
+      try {
+        // Find the active 'initiated' call from callerId to targetId
+        const [rows] = await pool.query(
+          `SELECT id FROM call_logs 
+           WHERE caller_id = $1 AND receiver_id = $2 AND status = 'initiated' 
+           ORDER BY created_at DESC LIMIT 1`,
+          [callerId, targetId]
+        );
+
+        if (rows.length > 0) {
+          const callId = rows[0].id;
+          
+          // Update status
+          await pool.query(
+            `UPDATE call_logs SET status = 'missed', end_reason = 'cancelled', ended_at = NOW() WHERE id = $1`, 
+            [callId]
+          );
+
+          // Tell the receiver to stop ringing
+          io.to(`user_${targetId}`).emit('call_cancelled', { callId });
+          
+          // Cancel the push notification
+          const { sendCallCancelNotification } = require('../utils/fcmService');
+          sendCallCancelNotification(targetId, callId);
+          
+          console.log(`[Call] Caller ${callerId} cancelled call ${callId} to ${targetId}`);
+        }
+      } catch (err) {
+        console.error('Error cancelling call:', err);
+      }
+    });
+
     // 1. Join Call Room
     socket.on('join_call', async (data) => {
       const { callId } = data;
