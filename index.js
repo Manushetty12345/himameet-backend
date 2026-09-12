@@ -89,7 +89,34 @@ app.get('/packages', async (req, res) => {
 });
 
 
-// Temporary wallet reset route
+// TEMPORARY: Seed coin packages into DB
+app.get('/seed-packages', async (req, res) => {
+  try {
+    // Clear existing packages first
+    await pool.query(`DELETE FROM coin_packages`);
+
+    // Insert all packages from frontend
+    await pool.query(`
+      INSERT INTO coin_packages (coins, price, original_price, discount_percent, is_welcome_offer, is_active, display_order) VALUES
+      (40,    25,   NULL, 30, false, true, 1),
+      (90,    49,   NULL,  0, false, true, 2),
+      (200,   64,   NULL, 30, false, true, 3),
+      (440,   129,  NULL, 20, false, true, 4),
+      (1200,  299,  NULL, 30, false, true, 5),
+      (2500,  699,  NULL, 30, false, true, 6),
+      (5500,  1199, NULL, 33, false, true, 7),
+      (15000, 2999, NULL, 40, false, true, 8),
+      (33000, 6999, NULL, 45, false, true, 9)
+    `);
+
+    const [rows] = await pool.query(`SELECT * FROM coin_packages ORDER BY price ASC`);
+    res.json({ status: 'success', message: `${rows.length} packages inserted!`, data: rows });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+
 app.get('/reset-wallet', async (req, res) => {
   try {
     await pool.query('UPDATE wallets SET coin_balance = 0');
