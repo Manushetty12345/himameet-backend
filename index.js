@@ -33,6 +33,62 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', message: 'Hima Backend is running' });
 });
 
+// TEMPORARY: View coin packages
+app.get('/packages', async (req, res) => {
+  try {
+    const [rows] = await pool.query(`SELECT * FROM coin_packages ORDER BY price ASC`);
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Coin Packages</title>
+        <style>
+          body { font-family: Arial, sans-serif; background: #f5f5f5; padding: 30px; }
+          h1 { color: #5B0E8B; }
+          table { border-collapse: collapse; width: 100%; background: white; border-radius: 10px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+          th { background: #5B0E8B; color: white; padding: 12px 16px; text-align: left; }
+          td { padding: 12px 16px; border-bottom: 1px solid #eee; }
+          tr:last-child td { border-bottom: none; }
+          tr:hover td { background: #f9f0ff; }
+          .badge { background: #FF1493; color: white; padding: 2px 8px; border-radius: 10px; font-size: 12px; }
+        </style>
+      </head>
+      <body>
+        <h1>💰 Coin Packages (${rows.length} total)</h1>
+        <table>
+          <tr>
+            <th>ID</th>
+            <th>Coins</th>
+            <th>Price (₹)</th>
+            <th>Original Price (₹)</th>
+            <th>Discount %</th>
+            <th>Welcome Offer?</th>
+            <th>Active?</th>
+            <th>Display Order</th>
+          </tr>
+          ${rows.length === 0 ? '<tr><td colspan="8" style="text-align:center;color:red;padding:30px;">No packages found in database!</td></tr>' :
+            rows.map(r => `
+            <tr>
+              <td>${r.id}</td>
+              <td><b>${r.coins}</b> coins</td>
+              <td><b>₹${r.price}</b></td>
+              <td>${r.original_price ? '₹' + r.original_price : '-'}</td>
+              <td>${r.discount_percent ? r.discount_percent + '%' : '-'}</td>
+              <td>${r.is_welcome_offer ? '<span class="badge">YES</span>' : 'No'}</td>
+              <td>${r.is_active ? '✅' : '❌'}</td>
+              <td>${r.display_order}</td>
+            </tr>`).join('')}
+        </table>
+        <p style="color:#888;margin-top:20px;">1 coin = ₹${rows.length > 0 ? (rows[0].price / rows[0].coins).toFixed(2) : '?'} (based on cheapest package)</p>
+      </body>
+      </html>`;
+    res.send(html);
+  } catch (err) {
+    res.status(500).send(`<b>Error:</b> ${err.message}`);
+  }
+});
+
+
 // Temporary wallet reset route
 app.get('/reset-wallet', async (req, res) => {
   try {
