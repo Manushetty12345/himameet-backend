@@ -54,6 +54,8 @@ exports.getFriends = async (req, res) => {
           WHEN u.user_role = 'creator' THEN (cs.is_voice_online = true OR cs.is_video_online = true)
           ELSE u.is_online 
         END AS is_online,
+        cs.voice_rate_per_min AS voice_rate,
+        cs.video_rate_per_min AS video_rate,
         'friend' AS status
       FROM friendships f
       JOIN users u ON (u.id = f.user_one_id OR u.id = f.user_two_id) AND u.id != $1
@@ -64,7 +66,9 @@ exports.getFriends = async (req, res) => {
 
     const formattedData = rows.map(row => ({
       ...row,
-      avatar_url: row.avatar_url || 'https://hima-bucket.s3.amazonaws.com/default-avatar.png'
+      avatar_url: row.avatar_url || 'https://hima-bucket.s3.amazonaws.com/default-avatar.png',
+      voice: { rate_per_min: row.voice_rate },
+      video: { rate_per_min: row.video_rate }
     }));
 
     res.status(200).json({
@@ -89,6 +93,8 @@ exports.getFavourites = async (req, res) => {
           WHEN u.user_role = 'creator' THEN (cs.is_voice_online = true OR cs.is_video_online = true)
           ELSE u.is_online 
         END AS is_online,
+        cs.voice_rate_per_min AS voice_rate,
+        cs.video_rate_per_min AS video_rate,
         'favourite' AS status
       FROM favourite_friends ff
       JOIN users u ON u.id = ff.friend_id
@@ -97,7 +103,10 @@ exports.getFavourites = async (req, res) => {
       WHERE ff.user_id = $1
     `, [userId]);
     const formattedData = rows.map(row => ({
-      ...row, avatar_url: row.avatar_url || 'https://hima-bucket.s3.amazonaws.com/default-avatar.png'
+      ...row, 
+      avatar_url: row.avatar_url || 'https://hima-bucket.s3.amazonaws.com/default-avatar.png',
+      voice: { rate_per_min: row.voice_rate },
+      video: { rate_per_min: row.video_rate }
     }));
     res.status(200).json({ status: 'success', data: formattedData });
   } catch (error) {
