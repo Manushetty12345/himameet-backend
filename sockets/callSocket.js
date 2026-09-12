@@ -8,7 +8,7 @@ const activeUsersInCall = new Set();
 
 module.exports = (io) => {
   io.on('connection', (socket) => {
-    
+
     // Join a user room for direct signaling
     if (socket.user && socket.user.id) {
       socket.join(`user_${socket.user.id}`);
@@ -29,7 +29,7 @@ module.exports = (io) => {
           [callerId, targetId, type, rate]
         );
         const callId = result[0].id;
-        
+
         // Fetch caller info
         const [callerRows] = await pool.query(`
           SELECT u.full_name AS name, a.avatar_url 
@@ -40,9 +40,9 @@ module.exports = (io) => {
 
         const callerName = callerRows.length > 0 ? callerRows[0].name : 'User';
         const callerAvatar = callerRows.length > 0 ? callerRows[0].avatar_url : 'https://hima-bucket.s3.amazonaws.com/default-avatar.png';
-        
+
         socket.join(`call_${callId}`);
-        
+
         // Let the receiver know
         io.to(`user_${targetId}`).emit('incoming_call', {
           callId,
@@ -75,10 +75,10 @@ module.exports = (io) => {
     socket.on('accept_call', async (data) => {
       const { callId, callerId } = data;
       socket.join(`call_${callId}`);
-      
+
       activeUsersInCall.add(String(socket.user.id));
       activeUsersInCall.add(String(callerId));
-      
+
       io.to(`user_${callerId}`).emit('call_accepted', { callId });
     });
 
@@ -103,10 +103,10 @@ module.exports = (io) => {
       if (room && room.size === 2) {
         // Both Male and Female are here! Start the billing timer!
         io.to(`call_${callId}`).emit('call_started', { message: 'Call is now active. Billing started.' });
-        
+
         // Update DB status to ongoing
         await pool.query(`UPDATE call_logs SET status = 'ongoing', started_at = NOW() WHERE id = $1`, [callId]);
-        
+
         startCallBillingTimer(callId, io);
       }
     });
@@ -116,7 +116,7 @@ module.exports = (io) => {
       const { callId } = data;
       socket.leave(`call_${callId}`);
       stopCallBillingTimer(callId);
-      
+
       try {
         // Clear busy status
         const [callRows] = await pool.query(`SELECT caller_id, receiver_id FROM call_logs WHERE id = $1`, [callId]);
@@ -127,7 +127,7 @@ module.exports = (io) => {
 
         // Update DB
         await pool.query(`UPDATE call_logs SET status = 'completed', ended_at = NOW() WHERE id = $1 AND status != 'completed'`, [callId]);
-        
+
         io.to(`call_${callId}`).emit('call_ended', { message: 'The other user hung up.' });
       } catch (err) {
         console.error('Error ending call:', err);
@@ -141,7 +141,7 @@ function startCallBillingTimer(callId, io) {
   if (activeCallTimers[callId]) return; // Already running
 
   console.log(`Starting billing timer for call ${callId}`);
-  
+
   // Run every 60 seconds (60000 ms)
   let tick = 0;
   activeCallTimers[callId] = setInterval(async () => {
@@ -150,13 +150,13 @@ function startCallBillingTimer(callId, io) {
       // Fetch call details
       const [callRows] = await pool.query(`SELECT caller_id, receiver_id, rate_per_min FROM call_logs WHERE id = $1`, [callId]);
       if (callRows.length === 0) return stopCallBillingTimer(callId);
-      
+
       const { caller_id, receiver_id, rate_per_min } = callRows[0];
       const rate = parseFloat(rate_per_min);
 
       // Deduct from caller
       const [updateRes] = await pool.query(
-        `UPDATE wallets SET coin_balance = coin_balance - $1 WHERE user_id = $2 AND coin_balance >= $3 RETURNING id`, 
+        `UPDATE wallets SET coin_balance = coin_balance - $1 WHERE user_id = $2 AND coin_balance >= $3 RETURNING id`,
         [rate, caller_id, rate]
       );
 
@@ -174,7 +174,7 @@ function startCallBillingTimer(callId, io) {
 
       // Record the tick
       await pool.query(`INSERT INTO call_billing_ticks (call_id, tick_number, coins_deducted) VALUES ($1, $2, $3)`, [callId, tick, rate]);
-      
+
       // Update total coins charged and duration in call_logs
       await pool.query(`
         UPDATE call_logs 
