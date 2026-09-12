@@ -189,14 +189,14 @@ exports.getMissedCalls = async (req, res) => {
         u.full_name AS name,
         a.avatar_url,
         c.call_type,
-        c.started_at,
+        c.created_at AS started_at,
         c.end_reason
       FROM call_logs c
       JOIN users u ON c.caller_id = u.id
       LEFT JOIN avatars a ON u.avatar_id = a.id
       WHERE c.receiver_id = $1 
-        AND c.status = 'missed'
-      ORDER BY c.started_at DESC
+        AND c.status IN ('missed', 'rejected')
+      ORDER BY c.created_at DESC
     `, [userId]);
 
     res.status(200).json({
