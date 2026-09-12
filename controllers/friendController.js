@@ -56,19 +56,16 @@ exports.getFriends = async (req, res) => {
         END AS is_online,
         cs.voice_rate_per_min AS voice_rate,
         cs.video_rate_per_min AS video_rate,
-        (
-          SELECT m.message_text 
-          FROM conversations c 
-          JOIN messages m ON c.last_message_id = m.id 
-          WHERE (c.user_one_id = u.id AND c.user_two_id = $1) 
-             OR (c.user_one_id = $1 AND c.user_two_id = u.id)
-          LIMIT 1
-        ) AS "lastMessage",
+        m.message_text AS "lastMessage",
+        m.status AS "lastMessageStatus",
+        m.sender_id AS "lastMessageSenderId",
         'friend' AS status
       FROM friendships f
       JOIN users u ON (u.id = f.user_one_id OR u.id = f.user_two_id) AND u.id != $1
       LEFT JOIN avatars a ON u.avatar_id = a.id
       LEFT JOIN creator_settings cs ON cs.user_id = u.id
+      LEFT JOIN conversations c ON (c.user_one_id = u.id AND c.user_two_id = $1) OR (c.user_one_id = $1 AND c.user_two_id = u.id)
+      LEFT JOIN messages m ON m.id = c.last_message_id
       WHERE f.user_one_id = $2 OR f.user_two_id = $3
     `, [userId, userId, userId]);
 
@@ -77,7 +74,9 @@ exports.getFriends = async (req, res) => {
       avatar_url: row.avatar_url || 'https://hima-bucket.s3.amazonaws.com/default-avatar.png',
       voice: { rate_per_min: row.voice_rate },
       video: { rate_per_min: row.video_rate },
-      lastMessage: row.lastMessage
+      lastMessage: row.lastMessage,
+      lastMessageStatus: row.lastMessageStatus,
+      lastMessageSenderId: row.lastMessageSenderId
     }));
 
     res.status(200).json({
@@ -104,19 +103,16 @@ exports.getFavourites = async (req, res) => {
         END AS is_online,
         cs.voice_rate_per_min AS voice_rate,
         cs.video_rate_per_min AS video_rate,
-        (
-          SELECT m.message_text 
-          FROM conversations c 
-          JOIN messages m ON c.last_message_id = m.id 
-          WHERE (c.user_one_id = u.id AND c.user_two_id = $1) 
-             OR (c.user_one_id = $1 AND c.user_two_id = u.id)
-          LIMIT 1
-        ) AS "lastMessage",
+        m.message_text AS "lastMessage",
+        m.status AS "lastMessageStatus",
+        m.sender_id AS "lastMessageSenderId",
         'favourite' AS status
       FROM favourite_friends ff
       JOIN users u ON u.id = ff.friend_id
       LEFT JOIN avatars a ON u.avatar_id = a.id
       LEFT JOIN creator_settings cs ON cs.user_id = u.id
+      LEFT JOIN conversations c ON (c.user_one_id = u.id AND c.user_two_id = $1) OR (c.user_one_id = $1 AND c.user_two_id = u.id)
+      LEFT JOIN messages m ON m.id = c.last_message_id
       WHERE ff.user_id = $1
     `, [userId]);
     const formattedData = rows.map(row => ({
@@ -124,7 +120,9 @@ exports.getFavourites = async (req, res) => {
       avatar_url: row.avatar_url || 'https://hima-bucket.s3.amazonaws.com/default-avatar.png',
       voice: { rate_per_min: row.voice_rate },
       video: { rate_per_min: row.video_rate },
-      lastMessage: row.lastMessage
+      lastMessage: row.lastMessage,
+      lastMessageStatus: row.lastMessageStatus,
+      lastMessageSenderId: row.lastMessageSenderId
     }));
     res.status(200).json({ status: 'success', data: formattedData });
   } catch (error) {
