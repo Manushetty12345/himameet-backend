@@ -14,6 +14,9 @@ router.post('/end', protect, callController.endCall);
 // Note: This route is mounted under /api/calls in index.js to match the spec
 router.get('/history', protect, callController.getHistory);
 
+// 9.2 Get Missed Calls
+router.get('/missed', protect, callController.getMissedCalls);
+
 router.post('/:call_id/accept', protect, callController.acceptCall);
 router.post('/:call_id/reject', protect, callController.rejectCall);
 

@@ -174,3 +174,47 @@ exports.rejectCall = async (req, res) => {
     res.status(500).json({ status: 'error', message: 'Internal Server Error' });
   }
 };
+
+/**
+ * 9.2 Get Missed Calls
+ */
+exports.getMissedCalls = async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    const [rows] = await pool.query(`
+      SELECT 
+        c.id AS call_id,
+        u.id AS user_id,
+        u.full_name AS name,
+        a.avatar_url,
+        c.call_type,
+        c.started_at,
+        c.end_reason
+      FROM call_logs c
+      JOIN users u ON c.caller_id = u.id
+      LEFT JOIN avatars a ON u.avatar_id = a.id
+      WHERE c.receiver_id = $1 
+        AND c.status = 'missed'
+      ORDER BY c.started_at DESC
+    `, [userId]);
+
+    res.status(200).json({
+      status: 'success',
+      data: rows.map(row => ({
+        id: row.call_id,
+        caller: {
+          id: row.user_id,
+          name: row.name,
+          avatar_url: row.avatar_url || 'https://hima-bucket.s3.amazonaws.com/default-avatar.png'
+        },
+        call_type: row.call_type,
+        started_at: row.started_at,
+        end_reason: row.end_reason
+      }))
+    });
+  } catch (error) {
+    console.error('Error fetching missed calls:', error);
+    res.status(500).json({ status: 'error', message: 'Internal Server Error' });
+  }
+};
