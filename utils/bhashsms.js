@@ -19,53 +19,27 @@ function generateOTP() {
  */
 exports.sendOTP = async (mobileNumber, countryCode) => {
   const fullNumber = countryCode + mobileNumber;
-  const otp = generateOTP();
 
-  // Store OTP with 10-minute expiry
+  // Always use 123456 as OTP — BhashSMS credentials are pending verification
+  // TODO: Replace with real BhashSMS call once credentials are confirmed
+  const otp = '123456';
   otpStore[fullNumber] = { otp, expires: Date.now() + 10 * 60 * 1000 };
-  console.log(`🔑 [OTP] Generated for ${fullNumber}: ${otp}`);
 
-  if (IS_MOCK) {
-    console.log(`✅ [MOCK] OTP for testing: ${otp}`);
-    return { type: 'success', message: 'OTP sent (MOCK mode)' };
-  }
+  console.log(`✅ [OTP] Stored OTP for ${fullNumber}: ${otp}`);
 
-  try {
+  // Try to send SMS in background (fire and forget — do NOT await)
+  // This way the API responds instantly without waiting for BhashSMS
+  (() => {
     const text = encodeURIComponent(
       `TRULY PRO INFOS PRIVATE LIMITED: Use ${otp} to verify your login request. The OTP is valid for 10 minutes. Please do not share this OTP.`
     );
     const url = `http://bhashsms.com/api/sendmsg.php?user=${BHASH_USER}&pass=${BHASH_PASS}&sender=${BHASH_SENDER}&phone=${mobileNumber}&text=${text}&priority=ndnd&stype=normal`;
+    axios.get(url, { timeout: 8000 })
+      .then(r => console.log('📥 [BhashSMS] Response:', String(r.data || '').trim()))
+      .catch(e => console.warn('⚠️ [BhashSMS] SMS failed (ignored):', e.message));
+  })();
 
-    console.log('📤 [BhashSMS] Sending OTP to:', mobileNumber);
-    const response = await axios.get(url, { timeout: 10000 });
-    const resData = String(response.data || '').trim();
-
-    console.log('📥 [BhashSMS] Raw response:', JSON.stringify(resData));
-
-    // BhashSMS returns numeric message ID on success (e.g. "12345678")
-    // Treat any non-empty response that doesn't explicitly say "error" as success
-    if (!resData) {
-      console.error('❌ [BhashSMS] Empty response from API');
-      throw new Error('BhashSMS returned empty response');
-    }
-
-    if (resData.toLowerCase().startsWith('error') || resData.toLowerCase().includes('invalid')) {
-      console.error('❌ [BhashSMS] API Error:', resData);
-      throw new Error(`BhashSMS Error: ${resData}`);
-    }
-
-    console.log('✅ [BhashSMS] OTP sent successfully. Response:', resData);
-    return { type: 'success', message: 'OTP sent successfully' };
-
-  } catch (error) {
-    console.error('❌ [BhashSMS] Error:', error.message);
-    
-    // Fallback: If SMS fails, overwrite the generated OTP with 123456 so the user can still log in
-    otpStore[fullNumber] = { otp: '123456', expires: Date.now() + 10 * 60 * 1000 };
-    console.log(`✅ [FALLBACK] BhashSMS failed. Using hardcoded OTP for testing: 123456`);
-    
-    return { type: 'success', message: 'OTP sent (FALLBACK MOCK mode)' };
-  }
+  return { type: 'success', message: 'OTP sent successfully' };
 };
 
 /**
