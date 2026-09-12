@@ -62,6 +62,7 @@ async function sendCallNotification(targetUserId, callData) {
             avatar_url: String(callData.avatar_url),
             call_type: String(callData.call_type),
             rate: String(callData.rate || 0),
+            agoraToken: String(callData.agoraToken || ''),
           },
           android: {
             priority: 'high',

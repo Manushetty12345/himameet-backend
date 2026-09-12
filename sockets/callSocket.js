@@ -44,6 +44,9 @@ module.exports = (io) => {
         let agoraToken = '';
         if (AGORA_APP_ID && AGORA_APP_CERTIFICATE) {
           agoraToken = RtcTokenBuilder.buildTokenWithUid(AGORA_APP_ID, AGORA_APP_CERTIFICATE, channelName, uid, role, privilegeExpiredTs);
+          console.log(`[Agora Token Generated for ${channelName}]:`, agoraToken);
+        } else {
+          console.error('[Agora Token Failed]: AGORA_APP_ID or CERTIFICATE missing!');
         }
 
         // Fetch caller info
@@ -82,6 +85,7 @@ module.exports = (io) => {
             avatar_url: callerAvatar,
             call_type: type,
             rate,
+            agoraToken,
           });
         }
 
@@ -123,6 +127,9 @@ module.exports = (io) => {
       let agoraToken = '';
       if (AGORA_APP_ID && AGORA_APP_CERTIFICATE) {
         agoraToken = RtcTokenBuilder.buildTokenWithUid(AGORA_APP_ID, AGORA_APP_CERTIFICATE, channelName, uid, role, privilegeExpiredTs);
+        console.log(`[Agora Token Generated for ${channelName} in accept_call]:`, agoraToken);
+      } else {
+        console.error('[Agora Token Failed in accept_call]: AGORA_APP_ID or CERTIFICATE missing!');
       }
 
       await pool.query(
