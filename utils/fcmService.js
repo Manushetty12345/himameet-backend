@@ -65,4 +65,27 @@ async function sendCallNotification(targetUserId, callData) {
   }
 }
 
-module.exports = { sendCallNotification };
+async function sendCallCancelNotification(targetUserId, callId) {
+  try {
+    const [rows] = await pool.query('SELECT fcm_token FROM users WHERE id = $1', [targetUserId]);
+    if (!rows || rows.length === 0 || !rows[0].fcm_token) return;
+
+    const message = {
+      token: rows[0].fcm_token,
+      data: {
+        type: 'call_cancelled',
+        callId: String(callId),
+      },
+      android: {
+        priority: 'high',
+      },
+    };
+
+    await admin.messaging().send(message);
+    console.log(`[FCM] Cancel notification sent to user ${targetUserId} for call ${callId}`);
+  } catch (err) {
+    console.error('[FCM] Error sending call cancel notification:', err.message);
+  }
+}
+
+module.exports = { sendCallNotification, sendCallCancelNotification };

@@ -67,6 +67,26 @@ module.exports = (io) => {
             rate,
           });
         }
+
+        // Auto-cancel if not accepted within 35 seconds
+        const autoCancel = setTimeout(async () => {
+          try {
+            const [rows] = await pool.query(`SELECT status FROM call_logs WHERE id = $1`, [callId]);
+            if (rows.length > 0 && rows[0].status === 'initiated') {
+              await pool.query(`UPDATE call_logs SET status = 'missed', end_reason = 'no_answer', ended_at = NOW() WHERE id = $1`, [callId]);
+              socket.emit('call_timeout', { callId, message: 'No answer. Please try again.' });
+              console.log(`[Call] Auto-cancelled call ${callId} after timeout.`);
+              
+              // Tell FCM to cancel the push notification on the female's phone
+              const { sendCallCancelNotification } = require('../utils/fcmService');
+              sendCallCancelNotification(targetId, callId);
+            }
+          } catch (e) { console.error('Auto-cancel error:', e); }
+        }, 35000);
+
+        // Clear the auto-cancel if they accept or decline before timeout
+        socket.once('call_accepted_ack_' + callId, () => clearTimeout(autoCancel));
+        socket.once('call_declined_' + callId, () => clearTimeout(autoCancel));
       } catch (err) {
         console.error('Error initiating call:', err);
       }
@@ -87,6 +107,13 @@ module.exports = (io) => {
       try {
         await pool.query(`UPDATE call_logs SET status = 'missed', end_reason = 'declined', ended_at = NOW() WHERE id = $1`, [callId]);
         io.to(`user_${callerId}`).emit('call_declined', { callId });
+        
+        // Ensure the ringing notification is cancelled
+        const [rows] = await pool.query(`SELECT receiver_id FROM call_logs WHERE id = $1`, [callId]);
+        if (rows.length > 0) {
+          const { sendCallCancelNotification } = require('../utils/fcmService');
+          sendCallCancelNotification(rows[0].receiver_id, callId);
+        }
       } catch (err) {
         console.error('Error declining call:', err);
       }
