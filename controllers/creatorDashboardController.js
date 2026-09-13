@@ -9,6 +9,9 @@ exports.getDashboardHome = async (req, res) => {
 
     const today = new Date().toISOString().split('T')[0];
 
+    const yesterdayDate = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+    const sevenDaysAgoDate = new Date(Date.now() - 6 * 86400000).toISOString().split('T')[0];
+
     // Ensure creator_settings table exists
     await pool.query(`
       CREATE TABLE IF NOT EXISTS creator_settings (
@@ -22,15 +25,42 @@ exports.getDashboardHome = async (req, res) => {
     await pool.query(`ALTER TABLE creator_settings ADD COLUMN IF NOT EXISTS is_voice_online BOOLEAN DEFAULT false`);
     await pool.query(`ALTER TABLE creator_settings ADD COLUMN IF NOT EXISTS is_video_online BOOLEAN DEFAULT false`);
 
-    const [earningRows] = await pool.query(`
+    // Today Earnings
+    const [todayEarningRows] = await pool.query(`
       SELECT SUM(coins) as total_coins 
       FROM coin_transactions 
       WHERE user_id = $1 AND type IN ('call_earn', 'chat_earn') AND DATE(created_at) = $2
     `, [creatorId, today]);
     
-    const todaysCoins = earningRows[0].total_coins || 0;
+    // Yesterday Earnings
+    const [yesterdayEarningRows] = await pool.query(`
+      SELECT SUM(coins) as total_coins 
+      FROM coin_transactions 
+      WHERE user_id = $1 AND type IN ('call_earn', 'chat_earn') AND DATE(created_at) = $2
+    `, [creatorId, yesterdayDate]);
+    
+    // This Week Earnings
+    const [weekEarningRows] = await pool.query(`
+      SELECT SUM(coins) as total_coins 
+      FROM coin_transactions 
+      WHERE user_id = $1 AND type IN ('call_earn', 'chat_earn') AND DATE(created_at) >= $2
+    `, [creatorId, sevenDaysAgoDate]);
+
+    // Total Time Spent
+    const [timeRows] = await pool.query(`
+      SELECT SUM(duration_seconds) as total_seconds 
+      FROM call_logs 
+      WHERE receiver_id = $1 AND status = 'completed'
+    `, [creatorId]);
+    
+    const todaysCoins = todayEarningRows[0].total_coins || 0;
+    const yesterdayCoins = yesterdayEarningRows[0].total_coins || 0;
+    const weekCoins = weekEarningRows[0].total_coins || 0;
+    const totalSeconds = timeRows[0].total_seconds || 0;
+
     const conversionRate = 0.10;
     const todaysInr = todaysCoins * conversionRate;
+    const weekInr = weekCoins * conversionRate;
 
     const [settingsRows] = await pool.query(`SELECT is_voice_online, is_video_online FROM creator_settings WHERE user_id = $1`, [creatorId]);
     const status = settingsRows.length > 0 ? settingsRows[0] : { is_voice_online: false, is_video_online: false };
@@ -59,6 +89,9 @@ exports.getDashboardHome = async (req, res) => {
       data: {
         todays_earnings_inr: parseFloat(todaysInr.toFixed(2)),
         todays_earnings_coins: parseInt(todaysCoins),
+        yesterday_earnings_coins: parseInt(yesterdayCoins),
+        week_earnings_inr: parseFloat(weekInr.toFixed(2)),
+        total_time_seconds: parseInt(totalSeconds),
         status: {
           is_voice_online: !!status.is_voice_online,
           is_video_online: !!status.is_video_online
