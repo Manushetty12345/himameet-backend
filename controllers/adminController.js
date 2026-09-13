@@ -25,11 +25,22 @@ exports.setupFirstAdmin = async (req, res) => {
       return res.status(403).json({ status: 'error', message: 'Admin already exists. Cannot run setup again.' });
     }
 
-    // Mark the user as admin
-    const [updated] = await pool.query(
-      `UPDATE users SET is_admin = true WHERE phone_number = $1 RETURNING id, full_name, phone_number`,
-      [phone_number]
-    );
+    // Try multiple formats: as-entered, without +91, with +91
+    const formats = [
+      phone_number,
+      phone_number.replace(/^\+91/, ''),        // strip +91 → 10 digits
+      phone_number.replace(/^91/, ''),           // strip 91 → 10 digits
+      '+91' + phone_number.replace(/^\+?91?/, '') // ensure +91 prefix
+    ];
+
+    let updated = [];
+    for (const fmt of formats) {
+      const [rows] = await pool.query(
+        `UPDATE users SET is_admin = true WHERE phone_number = $1 RETURNING id, full_name, phone_number`,
+        [fmt]
+      );
+      if (rows.length > 0) { updated = rows; break; }
+    }
 
     if (updated.length === 0) {
       return res.status(404).json({ status: 'error', message: 'Phone number not found. Make sure this number is registered in the app first.' });
@@ -50,14 +61,25 @@ exports.sendAdminOtp = async (req, res) => {
     const { phone_number } = req.body;
     if (!phone_number) return res.status(400).json({ status: 'error', message: 'Phone number required' });
 
-    // Check admin exists
-    const [rows] = await pool.query(`SELECT id FROM users WHERE phone_number = $1 AND is_admin = true`, [phone_number]);
-    if (rows.length === 0) {
+    // Try multiple phone number formats
+    const formats = [
+      phone_number,
+      phone_number.replace(/^\+91/, ''),
+      '+91' + phone_number.replace(/^\+?91?/, '')
+    ];
+
+    let admin = null;
+    for (const fmt of formats) {
+      const [rows] = await pool.query(`SELECT id FROM users WHERE phone_number = $1 AND is_admin = true`, [fmt]);
+      if (rows.length > 0) { admin = rows[0]; break; }
+    }
+
+    if (!admin) {
       return res.status(403).json({ status: 'error', message: 'Not an admin account' });
     }
 
     // Strip country code for bhashsms (expects 10-digit mobile)
-    const mobile = phone_number.replace(/^\+91/, '');
+    const mobile = phone_number.replace(/^\+91/, '').replace(/^91/, '').slice(-10);
     await bhashsms.sendOTP(mobile, '91');
 
     res.json({ status: 'success', message: 'OTP sent to your number' });
@@ -66,6 +88,7 @@ exports.sendAdminOtp = async (req, res) => {
     res.status(500).json({ status: 'error', message: 'Internal Server Error' });
   }
 };
+
 
 // ─── Admin Verify OTP ─────────────────────────────────────────────────────────
 exports.verifyAdminOtp = async (req, res) => {
