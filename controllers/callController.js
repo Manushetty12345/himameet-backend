@@ -104,6 +104,7 @@ exports.getHistory = async (req, res) => {
           c.call_type,
           c.status,
           c.duration_seconds,
+          c.coins_charged,
           c.created_at AS timestamp,
           cs.voice_rate_per_min,
           cs.video_rate_per_min
@@ -129,6 +130,7 @@ exports.getHistory = async (req, res) => {
         call_type: row.call_type,
         status: row.status,
         duration_seconds: row.duration_seconds,
+        coins_charged: row.coins_charged,
         timestamp: row.timestamp
     }));
 

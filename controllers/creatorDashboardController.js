@@ -207,12 +207,18 @@ exports.getEarningsSummary = async (req, res) => {
     const creatorId = req.user.id;
     const conversionRate = 0.10;
 
-    const [lifetimeRows] = await pool.query(`SELECT SUM(coins) as total FROM coin_transactions WHERE user_id = $1 AND type IN ('call_earn', 'chat_earn')`, [creatorId]);
+    const [lifetimeRows] = await pool.query(`SELECT SUM(coins) as total FROM coin_transactions WHERE user_id = $1 AND type IN ('call_earn', 'chat_earn', 'gift')`, [creatorId]);
     const lifetimeCoins = lifetimeRows[0].total || 0;
 
     // PostgreSQL uses EXTRACT instead of MONTH()/YEAR()
-    const [monthRows] = await pool.query(`SELECT SUM(coins) as total FROM coin_transactions WHERE user_id = $1 AND type IN ('call_earn', 'chat_earn') AND EXTRACT(MONTH FROM created_at) = EXTRACT(MONTH FROM CURRENT_DATE) AND EXTRACT(YEAR FROM created_at) = EXTRACT(YEAR FROM CURRENT_DATE)`, [creatorId]);
+    const [monthRows] = await pool.query(`SELECT SUM(coins) as total FROM coin_transactions WHERE user_id = $1 AND type IN ('call_earn', 'chat_earn', 'gift') AND EXTRACT(MONTH FROM created_at) = EXTRACT(MONTH FROM CURRENT_DATE) AND EXTRACT(YEAR FROM created_at) = EXTRACT(YEAR FROM CURRENT_DATE)`, [creatorId]);
     const monthCoins = monthRows[0].total || 0;
+
+    const [weekRows] = await pool.query(`SELECT SUM(coins) as total FROM coin_transactions WHERE user_id = $1 AND type IN ('call_earn', 'chat_earn', 'gift') AND created_at >= date_trunc('week', CURRENT_DATE)`, [creatorId]);
+    const weekCoins = weekRows[0].total || 0;
+
+    const [todayRows] = await pool.query(`SELECT SUM(coins) as total FROM coin_transactions WHERE user_id = $1 AND type IN ('call_earn', 'chat_earn', 'gift') AND DATE(created_at) = CURRENT_DATE`, [creatorId]);
+    const todayCoins = todayRows[0].total || 0;
 
     const [walletRows] = await pool.query(`SELECT coin_balance FROM wallets WHERE user_id = $1`, [creatorId]);
     const currentCoins = walletRows.length > 0 ? parseFloat(walletRows[0].coin_balance) : 0;
@@ -224,6 +230,10 @@ exports.getEarningsSummary = async (req, res) => {
         lifetime_earnings_inr: parseFloat((lifetimeCoins * conversionRate).toFixed(2)),
         this_month_earnings_coins: parseInt(monthCoins),
         this_month_earnings_inr: parseFloat((monthCoins * conversionRate).toFixed(2)),
+        this_week_earnings_coins: parseInt(weekCoins),
+        this_week_earnings_inr: parseFloat((weekCoins * conversionRate).toFixed(2)),
+        today_earnings_coins: parseInt(todayCoins),
+        today_earnings_inr: parseFloat((todayCoins * conversionRate).toFixed(2)),
         available_balance_coins: parseInt(currentCoins),
         available_balance_inr: parseFloat((currentCoins * conversionRate).toFixed(2))
       }
@@ -240,17 +250,20 @@ exports.getEarningsSummary = async (req, res) => {
 exports.saveBankDetails = async (req, res) => {
   try {
     const creatorId = req.user.id;
-    const { account_holder_name, account_number, ifsc_code, bank_name } = req.body;
+    const { account_holder_name, account_number, ifsc_code, bank_name, pan_number, upi_id } = req.body;
+    const passbook_image_url = req.file ? '/uploads/bank_kyc/' + req.file.filename : req.body.passbook_image_url;
+    // We didn't setup multiple fields for pan photo, we will just fallback to string if provided
+    const pan_photo_url = req.body.pan_photo_url || '';
 
     if (!account_holder_name || !account_number || !ifsc_code) {
       return res.status(400).json({ status: 'error', message: 'Missing required bank details' });
     }
 
     await pool.query(`
-      INSERT INTO bank_accounts (user_id, account_holder_name, account_number, ifsc_code, bank_name, passbook_image_url)
-      VALUES ($1, $2, $3, $4, $5, '')
-      ON CONFLICT (user_id) DO UPDATE SET account_holder_name = $6, account_number = $7, ifsc_code = $8, bank_name = $9
-    `, [creatorId, account_holder_name, account_number, ifsc_code, bank_name || '', account_holder_name, account_number, ifsc_code, bank_name || '']);
+      INSERT INTO bank_accounts (user_id, account_holder_name, account_number, ifsc_code, bank_name, passbook_image_url, pan_number, upi_id, pan_photo_url)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      ON CONFLICT (user_id) DO UPDATE SET account_holder_name = $2, account_number = $3, ifsc_code = $4, bank_name = $5, passbook_image_url = COALESCE($6, bank_accounts.passbook_image_url), pan_number = $7, upi_id = $8, pan_photo_url = $9
+    `, [creatorId, account_holder_name, account_number, ifsc_code, bank_name || '', passbook_image_url || '', pan_number || '', upi_id || '', pan_photo_url || '']);
 
     res.status(200).json({ status: 'success', message: 'Bank details saved successfully.' });
   } catch (error) {
@@ -265,7 +278,7 @@ exports.saveBankDetails = async (req, res) => {
 exports.getBankDetails = async (req, res) => {
   try {
     const creatorId = req.user.id;
-    const [rows] = await pool.query(`SELECT account_holder_name, account_number, ifsc_code, bank_name FROM bank_accounts WHERE user_id = $1`, [creatorId]);
+    const [rows] = await pool.query(`SELECT account_holder_name, account_number, ifsc_code, bank_name, pan_number, upi_id, passbook_image_url, pan_photo_url FROM bank_accounts WHERE user_id = $1`, [creatorId]);
     
     if (rows.length === 0) {
       return res.status(404).json({ status: 'error', message: 'No bank details found' });
