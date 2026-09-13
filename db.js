@@ -23,7 +23,7 @@ pool.connect()
       await client.query('ALTER TABLE call_logs ADD COLUMN IF NOT EXISTS receiver_deleted BOOLEAN DEFAULT false');
       console.log('✅ Migration: ensured receiver_deleted column exists');
       
-      await client.query('ALTER TABLE bank_accounts ADD COLUMN IF NOT EXISTS bank_name VARCHAR(100), ADD COLUMN IF NOT EXISTS pan_number VARCHAR(50), ADD COLUMN IF NOT EXISTS upi_id VARCHAR(100), ADD COLUMN IF NOT EXISTS passbook_photo_url TEXT, ADD COLUMN IF NOT EXISTS pan_photo_url TEXT');
+      await client.query('ALTER TABLE bank_accounts ADD COLUMN IF NOT EXISTS bank_name VARCHAR(100), ADD COLUMN IF NOT EXISTS pan_number VARCHAR(50), ADD COLUMN IF NOT EXISTS upi_id VARCHAR(100), ADD COLUMN IF NOT EXISTS passbook_photo_url TEXT, ADD COLUMN IF NOT EXISTS pan_photo_url TEXT, ADD COLUMN IF NOT EXISTS phone_number VARCHAR(20)');
       console.log('✅ Migration: ensured extended bank_accounts columns exist');
     } catch (e) {
       console.error('Error running migration:', e);

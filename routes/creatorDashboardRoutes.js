@@ -16,7 +16,7 @@ router.get('/calls/history', protect, dashboardController.getCreatorCallHistory)
 const imageUpload = require('../middleware/imageUploadMiddleware');
 
 router.get('/earnings/summary', protect, dashboardController.getEarningsSummary);
-router.post('/bank-details', protect, imageUpload.single('passbook_photo'), dashboardController.saveBankDetails);
+router.post('/bank-details', protect, imageUpload.fields([{ name: 'passbook_photo', maxCount: 1 }, { name: 'pan_photo', maxCount: 1 }]), dashboardController.saveBankDetails);
 router.get('/bank-details', protect, dashboardController.getBankDetails);
 router.post('/withdraw', protect, dashboardController.submitWithdrawal);
 router.get('/withdrawals', protect, dashboardController.getWithdrawalHistory);
