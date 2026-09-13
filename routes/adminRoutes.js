@@ -11,8 +11,9 @@ const adminOnly = (req, res, next) => {
   next();
 };
 
-// Public - Login
-router.post('/login', adminController.adminLogin);
+// Public - OTP Login (2 steps)
+router.post('/send-otp', adminController.sendAdminOtp);
+router.post('/verify-otp', adminController.verifyAdminOtp);
 
 // All routes below require admin auth
 router.use(protect, adminOnly);

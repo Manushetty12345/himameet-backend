@@ -1,38 +1,61 @@
 const pool = require('../db');
 const jwt = require('jsonwebtoken');
+const bhashsms = require('../utils/bhashsms');
 
 const JWT_SECRET = process.env.JWT_SECRET;
 
-// ─── Admin Login ───────────────────────────────────────────────────────────────
-exports.adminLogin = async (req, res) => {
+// ─── Admin Send OTP ───────────────────────────────────────────────────────────
+exports.sendAdminOtp = async (req, res) => {
   try {
-    const { phone_number, password } = req.body;
+    const { phone_number } = req.body;
+    if (!phone_number) return res.status(400).json({ status: 'error', message: 'Phone number required' });
 
-    const [rows] = await pool.query(
-      `SELECT * FROM users WHERE phone_number = $1 AND is_admin = true`, 
-      [phone_number]
-    );
-
+    // Check admin exists
+    const [rows] = await pool.query(`SELECT id FROM users WHERE phone_number = $1 AND is_admin = true`, [phone_number]);
     if (rows.length === 0) {
-      return res.status(401).json({ status: 'error', message: 'Invalid credentials or not an admin' });
+      return res.status(403).json({ status: 'error', message: 'Not an admin account' });
+    }
+
+    // Strip country code for bhashsms (expects 10-digit mobile)
+    const mobile = phone_number.replace(/^\+91/, '');
+    await bhashsms.sendOTP(mobile, '91');
+
+    res.json({ status: 'success', message: 'OTP sent to your number' });
+  } catch (err) {
+    console.error('[sendAdminOtp] Error:', err);
+    res.status(500).json({ status: 'error', message: 'Internal Server Error' });
+  }
+};
+
+// ─── Admin Verify OTP ─────────────────────────────────────────────────────────
+exports.verifyAdminOtp = async (req, res) => {
+  try {
+    const { phone_number, otp } = req.body;
+    if (!phone_number || !otp) return res.status(400).json({ status: 'error', message: 'Phone and OTP required' });
+
+    // Verify OTP
+    const mobile = phone_number.replace(/^\+91/, '');
+    const result = bhashsms.verifyOTP(mobile, '91', otp);
+    if (result.type !== 'success') {
+      return res.status(400).json({ status: 'error', message: result.message || 'Invalid OTP' });
+    }
+
+    // Get admin user
+    const [rows] = await pool.query(`SELECT * FROM users WHERE phone_number = $1 AND is_admin = true`, [phone_number]);
+    if (rows.length === 0) {
+      return res.status(403).json({ status: 'error', message: 'Not an admin account' });
     }
 
     const admin = rows[0];
+    const token = jwt.sign({ id: admin.id, is_admin: true }, process.env.JWT_SECRET, { expiresIn: '7d' });
 
-    // Simple password check (you can upgrade to bcrypt later)
-    if (admin.admin_password !== password) {
-      return res.status(401).json({ status: 'error', message: 'Invalid password' });
-    }
-
-    const token = jwt.sign({ id: admin.id, is_admin: true }, JWT_SECRET, { expiresIn: '7d' });
-
-    res.json({ 
-      status: 'success', 
+    res.json({
+      status: 'success',
       token,
       admin: { id: admin.id, full_name: admin.full_name, phone_number: admin.phone_number }
     });
   } catch (err) {
-    console.error('[adminLogin] Error:', err);
+    console.error('[verifyAdminOtp] Error:', err);
     res.status(500).json({ status: 'error', message: 'Internal Server Error' });
   }
 };
