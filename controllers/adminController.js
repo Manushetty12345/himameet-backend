@@ -191,7 +191,7 @@ exports.getUsers = async (req, res) => {
     const role = req.query.role || '';
     const status = req.query.status || '';
 
-    let conditions = [`(u.is_admin = false OR u.is_admin IS NULL)`];
+    let conditions = [`(u.is_admin = false OR u.is_admin IS NULL)`, `(u.user_role != 'creator' OR u.is_verified = true)`];
     const params = [];
     let idx = 1;
 
