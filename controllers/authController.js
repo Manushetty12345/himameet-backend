@@ -226,11 +226,22 @@ exports.checkSession = async (req, res) => {
         }
         
         const user = rows[0];
+
+        let application_status = null;
+        if (user.user_role === 'creator') {
+          const [appRows] = await pool.query(
+            `SELECT status FROM creator_applications WHERE user_id = $1 ORDER BY submitted_at DESC LIMIT 1`,
+            [decoded.id]
+          );
+          if (appRows.length > 0) application_status = appRows[0].status;
+        }
+
         return res.status(200).json({
           status: 'success',
           data: {
             is_new_user: false,
             profile_setup_complete: user.profile_setup_complete ?? true,
+            application_status,
             user: {
               id: user.id,
               role: user.user_role,
