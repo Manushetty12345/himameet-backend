@@ -296,7 +296,7 @@ exports.reviewApplication = async (req, res) => {
     `, [action, rejection_reason || null, req.user.id, applicationId]);
 
     if (action === 'approved') {
-      await pool.query(`UPDATE users SET user_role = 'creator' WHERE id = $1`, [app.user_id]);
+      await pool.query(`UPDATE users SET user_role = 'creator', is_verified = true WHERE id = $1`, [app.user_id]);
     }
 
     res.json({ status: 'success', message: `Application ${action}` });
