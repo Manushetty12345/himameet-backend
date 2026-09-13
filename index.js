@@ -33,19 +33,19 @@ app.use(express.json());
 app.get('/api/delete-user/:phone', async (req, res) => {
   try {
      const phone = req.params.phone;
-     const [rows] = await pool.query(SELECT id FROM users WHERE phone_number = , [phone]);
+     const [rows] = await pool.query(`SELECT id FROM users WHERE phone_number = $1`, [phone]);
      if (rows.length > 0) {
          const userId = rows[0].id;
-         await pool.query(DELETE FROM creator_applications WHERE user_id = , [userId]);
-         await pool.query(DELETE FROM user_tags WHERE user_id = , [userId]);
-         await pool.query(DELETE FROM wallets WHERE user_id = , [userId]);
-         await pool.query(DELETE FROM withdrawal_requests WHERE user_id = , [userId]);
-         await pool.query(DELETE FROM call_logs WHERE caller_id =  OR receiver_id = , [userId]);
-         await pool.query(DELETE FROM coin_transactions WHERE user_id = , [userId]);
-         await pool.query(DELETE FROM users WHERE id = , [userId]);
-         res.send(Deleted user  successfully);
+         await pool.query(`DELETE FROM creator_applications WHERE user_id = $1`, [userId]);
+         await pool.query(`DELETE FROM user_tags WHERE user_id = $1`, [userId]);
+         await pool.query(`DELETE FROM wallets WHERE user_id = $1`, [userId]);
+         await pool.query(`DELETE FROM withdrawal_requests WHERE user_id = $1`, [userId]);
+         await pool.query(`DELETE FROM call_logs WHERE caller_id = $1 OR receiver_id = $1`, [userId]);
+         await pool.query(`DELETE FROM coin_transactions WHERE user_id = $1`, [userId]);
+         await pool.query(`DELETE FROM users WHERE id = $1`, [userId]);
+         res.send('Deleted user successfully');
      } else {
-         res.send(User  not found);
+         res.send('User not found');
      }
   } catch (e) {
      res.send("Error: " + e.message);
@@ -445,5 +445,8 @@ pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS fcm_token TEXT`)
 server.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
 });
+
+
+
 
 
