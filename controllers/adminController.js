@@ -1,4 +1,4 @@
-﻿const pool = require('../db');
+const pool = require('../db');
 const jwt = require('jsonwebtoken');
 const bhashsms = require('../utils/bhashsms');
 
@@ -489,3 +489,56 @@ exports.getCallLogs = async (req, res) => {
   }
 };
 
+
+
+// --- Coin Packages (Admin) ----------------------------------------------------
+exports.getPackages = async (req, res) => {
+  try {
+    const [packages] = await pool.query(`SELECT * FROM coin_packages ORDER BY display_order ASC, price ASC`);
+    res.json({ status: "success", data: packages });
+  } catch (err) {
+    console.error("[getPackages] Error:", err);
+    res.status(500).json({ status: "error", message: "Internal Server Error" });
+  }
+};
+
+exports.createPackage = async (req, res) => {
+  try {
+    const { coins, price, original_price, discount_percent, is_welcome_offer, is_active, display_order } = req.body;
+    const [result] = await pool.query(`
+      INSERT INTO coin_packages (coins, price, original_price, discount_percent, is_welcome_offer, is_active, display_order)
+      VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *
+    `, [coins, price, original_price || null, discount_percent || 0, is_welcome_offer || false, is_active ?? true, display_order || 0]);
+    res.json({ status: "success", data: result[0] });
+  } catch (err) {
+    console.error("[createPackage] Error:", err);
+    res.status(500).json({ status: "error", message: "Internal Server Error" });
+  }
+};
+
+exports.updatePackage = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { coins, price, original_price, discount_percent, is_welcome_offer, is_active, display_order } = req.body;
+    const [result] = await pool.query(`
+      UPDATE coin_packages 
+      SET coins = $1, price = $2, original_price = $3, discount_percent = $4, is_welcome_offer = $5, is_active = $6, display_order = $7
+      WHERE id = $8 RETURNING *
+    `, [coins, price, original_price || null, discount_percent || 0, is_welcome_offer || false, is_active ?? true, display_order || 0, id]);
+    res.json({ status: "success", data: result[0] });
+  } catch (err) {
+    console.error("[updatePackage] Error:", err);
+    res.status(500).json({ status: "error", message: "Internal Server Error" });
+  }
+};
+
+exports.deletePackage = async (req, res) => {
+  try {
+    const { id } = req.params;
+    await pool.query(`DELETE FROM coin_packages WHERE id = $1`, [id]);
+    res.json({ status: "success", message: "Package deleted" });
+  } catch (err) {
+    console.error("[deletePackage] Error:", err);
+    res.status(500).json({ status: "error", message: "Internal Server Error" });
+  }
+};

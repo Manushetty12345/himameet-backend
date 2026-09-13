@@ -43,8 +43,14 @@ router.put('/reports/:reportId/resolve', adminController.resolveReport);
 
 // Support
 router.get('/tickets', adminController.getTickets);
-router.post('/tickets/:ticketId/reply', adminController.replyTicket);
+router.put('/tickets/:ticketId/reply', adminController.replyTicket);
 router.put('/tickets/:ticketId/close', adminController.closeTicket);
+
+// Packages
+router.get('/packages', adminController.getPackages);
+router.post('/packages', adminController.createPackage);
+router.put('/packages/:id', adminController.updatePackage);
+router.delete('/packages/:id', adminController.deletePackage);
 
 // Call Logs
 router.get('/call-logs', adminController.getCallLogs);
