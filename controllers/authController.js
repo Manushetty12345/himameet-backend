@@ -1,4 +1,4 @@
-const pool = require('../db');
+﻿const pool = require('../db');
 const jwt = require('jsonwebtoken');
 const { v4: uuidv4 } = require('uuid');
 const bhashsms = require('../utils/bhashsms');
@@ -251,3 +251,4 @@ exports.checkSession = async (req, res) => {
     return res.status(500).json({ status: 'error', message: 'Internal Server Error' });
   }
 };
+
