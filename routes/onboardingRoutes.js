@@ -17,14 +17,14 @@ router.post('/profile-setup', protect, onboardingController.saveProfileSetup);
 router.get('/wipe-database-danger', async (req, res) => {
   const pool = require('../db');
   try {
-    const { rows } = await pool.query(SELECT tablename FROM pg_tables WHERE schemaname = 'public');
+    const { rows } = await pool.query("SELECT tablename FROM pg_tables WHERE schemaname = 'public'");
     const tablesToKeep = ['languages', 'tags', 'avatars', 'admin_users'];
     const tablesToWipe = rows
       .map(r => r.tablename)
       .filter(t => !tablesToKeep.includes(t));
 
     for (const table of tablesToWipe) {
-      await pool.query(TRUNCATE TABLE " + table + " CASCADE);
+      await pool.query("TRUNCATE TABLE \"" + table + "\" CASCADE");
     }
 
     res.json({ success: true, wiped: tablesToWipe, message: 'All user data has been cleared.' });
@@ -35,5 +35,7 @@ router.get('/wipe-database-danger', async (req, res) => {
 });
 
 module.exports = router;
+
+
 
 
