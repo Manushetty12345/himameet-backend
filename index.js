@@ -1,4 +1,4 @@
-require('dotenv').config();
+﻿require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const http = require('http');
@@ -175,6 +175,7 @@ app.get('/delete-test-user', async (req, res) => {
 // Serve static files from the 'public' folder (for avatars)
 const path = require('path');
 app.use('/public', express.static(path.join(__dirname, 'public')));
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Mount Routes
 app.use('/api/auth', authRoutes);
@@ -422,3 +423,4 @@ pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS fcm_token TEXT`)
 server.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
 });
+

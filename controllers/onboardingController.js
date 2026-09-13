@@ -1,4 +1,4 @@
-const pool = require('../db');
+﻿const pool = require('../db');
 const jwt = require('jsonwebtoken');
 const { v4: uuidv4 } = require('uuid');
 
@@ -165,3 +165,132 @@ exports.saveProfileSetup = async (req, res) => {
     res.status(500).json({ status: 'error', message: 'Internal Server Error' });
   }
 };
+
+exports.getVoiceSentence = async (req, res) => {
+  try {
+    // In the future, this could be fetched from a database table 'settings' for multi-language support.
+    res.json({ success: true, data: 'Hello! I am excited to join Himameet and meet new people.' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ success: false, error: 'Server Error' });
+  }
+};
+
+
+exports.submitCreatorApplication = async (req, res) => {
+  try {
+    const { temp_phone, temp_country_code } = req.user;
+    const { gender, avatar_id, language_id, age, bio, interests } = req.body;
+    
+    // The uploaded file will be available in req.file
+
+    let ai_gender_score = null;
+
+    if (req.file) {
+      voice_sample_url = '/uploads/' + req.file.filename;
+      
+      // AI Verification
+      try {
+        const fs = require('fs');
+        const axios = require('axios');
+        const fileData = fs.readFileSync(req.file.path);
+        
+        console.log('Sending audio to Hugging Face...');
+        const response = await axios.post(
+          'https://api-inference.huggingface.co/models/alefiury/wav2vec2-large-xlsr-53-gender-recognition',
+          fileData,
+          {
+            headers: {
+              'Content-Type': 'audio/mp4',
+              // Use API Key if available, otherwise rely on free tier rate-limits
+              ...(process.env.HUGGINGFACE_API_KEY ? { 'Authorization': Bearer  } : {})
+            }
+          }
+        );
+        
+        console.log('Hugging Face Response:', response.data);
+        
+        // Find the 'female' score
+        if (Array.isArray(response.data)) {
+          const femaleObj = response.data.find(r => r.label === 'female');
+          if (femaleObj) {
+            ai_gender_score = femaleObj.score * 100; // Convert to percentage
+          }
+        }
+      } catch (aiError) {
+        console.warn('AI Verification failed or rate-limited. Proceeding anyway.', aiError?.response?.data || aiError.message);
+      }
+    }
+
+    if (!temp_phone) {
+      return res.status(401).json({ status: 'error', message: 'Invalid temporary token.' });
+    }
+
+    const [existing] = await pool.query(SELECT * FROM users WHERE phone_number = , [temp_phone]);
+    if (existing.length > 0) {
+      return res.status(400).json({ status: 'error', message: 'User already completed profile' });
+    }
+
+    // Attempt schema migration in case it hasn't run
+    try {
+      await pool.query('ALTER TABLE creator_applications ADD COLUMN IF NOT EXISTS voice_sample_url TEXT');
+      await pool.query('ALTER TABLE creator_applications ADD COLUMN IF NOT EXISTS ai_gender_score NUMERIC(5,2)');
+    } catch(e) {
+      console.warn("Migration warning:", e.message);
+    }
+
+    const fullName = 'Creator ' + temp_phone.slice(-4);
+
+    // Insert into users
+    const [result] = await pool.query(
+      INSERT INTO users (phone_number, country_code, full_name, user_role, gender, avatar_id, language_id, age, about_me, is_verified) 
+       VALUES (, , , , , , , , , ) RETURNING id,
+      [temp_phone, temp_country_code || '+91', fullName, 'creator', gender, avatar_id, language_id, age, bio, false]
+    );
+    const newUserId = result[0].id;
+
+    // Handle interests if provided
+    if (interests) {
+      try {
+        let parsedInterests = JSON.parse(interests);
+        for (let tagId of parsedInterests) {
+          await pool.query(
+            INSERT INTO user_tags (user_id, tag_id) VALUES (, ) ON CONFLICT DO NOTHING,
+            [newUserId, tagId]
+          );
+        }
+      } catch (e) {
+        console.warn('Could not parse interests', interests);
+      }
+    }
+
+    // Insert into creator_applications
+    await pool.query(
+      INSERT INTO creator_applications (user_id, status, voice_sample_url) VALUES (, 'pending_review', ),
+      [newUserId, voice_sample_url, ai_gender_score]
+    );
+
+    const token = jwt.sign({ id: newUserId, role: 'creator' }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Application submitted successfully',
+      data: {
+        token,
+        user: {
+          id: newUserId,
+          role: 'creator',
+          name: fullName,
+          phone_number: temp_phone
+        }
+      }
+    });
+
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ status: 'error', message: 'Internal Server Error' });
+  }
+};
+
+
+
