@@ -175,6 +175,7 @@ exports.getCreatorCallHistory = async (req, res) => {
       SELECT 
         c.id AS call_id,
         u.full_name AS caller_name,
+        a.avatar_url,
         c.call_type,
         c.duration_seconds,
         c.coins_charged AS earnings_coins,
@@ -182,6 +183,7 @@ exports.getCreatorCallHistory = async (req, res) => {
         c.created_at
       FROM call_logs c
       JOIN users u ON c.caller_id = u.id
+      LEFT JOIN avatars a ON u.avatar_id = a.id
       WHERE c.receiver_id = $1
       ORDER BY c.created_at DESC
       LIMIT $2 OFFSET $3
