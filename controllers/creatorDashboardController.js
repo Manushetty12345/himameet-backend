@@ -344,7 +344,8 @@ exports.submitWithdrawal = async (req, res) => {
 exports.getWithdrawalHistory = async (req, res) => {
   try {
     const creatorId = req.user.id;
-    const [rows] = await pool.query(`SELECT id AS request_id, amount_inr, status, created_at AS requested_at FROM withdrawal_requests WHERE user_id = $1 ORDER BY created_at DESC`, [creatorId]);
+    // The schema uses requested_at, not created_at
+    const [rows] = await pool.query(`SELECT id AS request_id, amount_inr, status, requested_at FROM withdrawal_requests WHERE user_id = $1 ORDER BY requested_at DESC`, [creatorId]);
     
     res.status(200).json({ status: 'success', data: rows });
   } catch (error) {

@@ -25,6 +25,19 @@ pool.connect()
       
       await client.query('ALTER TABLE bank_accounts ADD COLUMN IF NOT EXISTS bank_name VARCHAR(100), ADD COLUMN IF NOT EXISTS pan_number VARCHAR(50), ADD COLUMN IF NOT EXISTS upi_id VARCHAR(100), ADD COLUMN IF NOT EXISTS passbook_photo_url TEXT, ADD COLUMN IF NOT EXISTS pan_photo_url TEXT, ADD COLUMN IF NOT EXISTS phone_number VARCHAR(20)');
       console.log('✅ Migration: ensured extended bank_accounts columns exist');
+
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS withdrawal_requests (
+          id                      BIGSERIAL PRIMARY KEY,
+          user_id                 BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          amount_inr              NUMERIC(10,2) NOT NULL,
+          status                  VARCHAR(20) NOT NULL DEFAULT 'pending',
+          admin_notes             TEXT,
+          requested_at            TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          processed_at            TIMESTAMP
+        )
+      `);
+      console.log('✅ Migration: ensured withdrawal_requests table exists');
     } catch (e) {
       console.error('Error running migration:', e);
     }
