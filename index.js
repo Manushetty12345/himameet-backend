@@ -192,6 +192,7 @@ app.use('/api/chat', chatRoutes);
 app.use('/api/call', callRoutes);
 app.use('/api/calls', callRoutes);
 app.use('/api/gifts', giftRoutes);
+app.use('/api/admin', adminRoutes);
 
 // ── FCM Token: Save device token for push notifications ──
 const { protect: authProtect } = require('./middleware/authMiddleware');
