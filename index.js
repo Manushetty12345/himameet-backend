@@ -17,6 +17,7 @@ const friendRoutes = require('./routes/friendRoutes');
 const chatRoutes = require('./routes/chatRoutes');
 const callRoutes = require('./routes/callRoutes');
 const giftRoutes = require('./routes/giftRoutes');
+const adminRoutes = require('./routes/adminRoutes');
 
 const setupChatSocket = require('./sockets/chatSocket');
 
@@ -32,6 +33,8 @@ app.use(express.json());
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', message: 'Hima Backend is running' });
 });
+
+app.use('/api/admin', adminRoutes);
 
 // TEMPORARY: Seed settings table into DB
 app.get('/seed-settings', async (req, res) => {

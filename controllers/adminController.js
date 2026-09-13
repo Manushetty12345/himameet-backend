@@ -1,0 +1,404 @@
+const pool = require('../db');
+const jwt = require('jsonwebtoken');
+
+const JWT_SECRET = process.env.JWT_SECRET;
+
+// ─── Admin Login ───────────────────────────────────────────────────────────────
+exports.adminLogin = async (req, res) => {
+  try {
+    const { phone_number, password } = req.body;
+
+    const [rows] = await pool.query(
+      `SELECT * FROM users WHERE phone_number = $1 AND is_admin = true`, 
+      [phone_number]
+    );
+
+    if (rows.length === 0) {
+      return res.status(401).json({ status: 'error', message: 'Invalid credentials or not an admin' });
+    }
+
+    const admin = rows[0];
+
+    // Simple password check (you can upgrade to bcrypt later)
+    if (admin.admin_password !== password) {
+      return res.status(401).json({ status: 'error', message: 'Invalid password' });
+    }
+
+    const token = jwt.sign({ id: admin.id, is_admin: true }, JWT_SECRET, { expiresIn: '7d' });
+
+    res.json({ 
+      status: 'success', 
+      token,
+      admin: { id: admin.id, full_name: admin.full_name, phone_number: admin.phone_number }
+    });
+  } catch (err) {
+    console.error('[adminLogin] Error:', err);
+    res.status(500).json({ status: 'error', message: 'Internal Server Error' });
+  }
+};
+
+// ─── Dashboard Overview ────────────────────────────────────────────────────────
+exports.getOverview = async (req, res) => {
+  try {
+    const [[totalUsers]] = await pool.query(`SELECT COUNT(*) as count FROM users WHERE is_admin = false OR is_admin IS NULL`);
+    const [[totalCreators]] = await pool.query(`SELECT COUNT(*) as count FROM users WHERE user_role = 'creator'`);
+    const [[maleCount]] = await pool.query(`SELECT COUNT(*) as count FROM users WHERE gender = 'male'`);
+    const [[femaleCount]] = await pool.query(`SELECT COUNT(*) as count FROM users WHERE gender = 'female'`);
+    const [[pendingApplications]] = await pool.query(`SELECT COUNT(*) as count FROM creator_applications WHERE status = 'pending_review'`);
+    const [[pendingWithdrawals]] = await pool.query(`SELECT COUNT(*) as count FROM withdrawal_requests WHERE status = 'pending'`);
+    const [[openTickets]] = await pool.query(`SELECT COUNT(*) as count FROM support_tickets WHERE status = 'active'`);
+    const [[pendingReports]] = await pool.query(`SELECT COUNT(*) as count FROM user_reports WHERE status = 'pending'`);
+
+    const [[todayRevenue]] = await pool.query(`
+      SELECT COALESCE(SUM(coins), 0) as total FROM coin_transactions 
+      WHERE type = 'purchase' AND DATE(created_at) = CURRENT_DATE
+    `);
+    const [[monthRevenue]] = await pool.query(`
+      SELECT COALESCE(SUM(coins), 0) as total FROM coin_transactions 
+      WHERE type = 'purchase' AND EXTRACT(MONTH FROM created_at) = EXTRACT(MONTH FROM CURRENT_DATE)
+        AND EXTRACT(YEAR FROM created_at) = EXTRACT(YEAR FROM CURRENT_DATE)
+    `);
+    const [[totalRevenue]] = await pool.query(`
+      SELECT COALESCE(SUM(coins), 0) as total FROM coin_transactions WHERE type = 'purchase'
+    `);
+    const [[pendingWithdrawAmount]] = await pool.query(`
+      SELECT COALESCE(SUM(amount_inr), 0) as total FROM withdrawal_requests WHERE status = 'pending'
+    `);
+    const [[activeCalls]] = await pool.query(`
+      SELECT COUNT(*) as count FROM call_logs WHERE status = 'ongoing'
+    `);
+
+    res.json({
+      status: 'success',
+      data: {
+        total_users: parseInt(totalUsers.count),
+        total_creators: parseInt(totalCreators.count),
+        male_count: parseInt(maleCount.count),
+        female_count: parseInt(femaleCount.count),
+        pending_applications: parseInt(pendingApplications.count),
+        pending_withdrawals: parseInt(pendingWithdrawals.count),
+        open_tickets: parseInt(openTickets.count),
+        pending_reports: parseInt(pendingReports.count),
+        today_revenue_coins: parseInt(todayRevenue.total),
+        today_revenue_inr: parseFloat((todayRevenue.total / 10).toFixed(2)),
+        month_revenue_coins: parseInt(monthRevenue.total),
+        month_revenue_inr: parseFloat((monthRevenue.total / 10).toFixed(2)),
+        total_revenue_coins: parseInt(totalRevenue.total),
+        total_revenue_inr: parseFloat((totalRevenue.total / 10).toFixed(2)),
+        pending_withdrawal_amount: parseFloat(pendingWithdrawAmount.total),
+        active_calls: parseInt(activeCalls.count),
+      }
+    });
+  } catch (err) {
+    console.error('[getOverview] Error:', err);
+    res.status(500).json({ status: 'error', message: 'Internal Server Error' });
+  }
+};
+
+// ─── Users ─────────────────────────────────────────────────────────────────────
+exports.getUsers = async (req, res) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20;
+    const offset = (page - 1) * limit;
+    const search = req.query.search || '';
+    const role = req.query.role || '';
+    const status = req.query.status || '';
+
+    let conditions = [`(u.is_admin = false OR u.is_admin IS NULL)`];
+    const params = [];
+    let idx = 1;
+
+    if (search) {
+      conditions.push(`(u.full_name ILIKE $${idx} OR u.phone_number ILIKE $${idx})`);
+      params.push(`%${search}%`);
+      idx++;
+    }
+    if (role) {
+      conditions.push(`u.user_role = $${idx}`);
+      params.push(role);
+      idx++;
+    }
+    if (status) {
+      conditions.push(`u.account_status = $${idx}`);
+      params.push(status);
+      idx++;
+    }
+
+    const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+
+    const [users] = await pool.query(`
+      SELECT u.id, u.full_name, u.phone_number, u.gender, u.user_role, u.account_status,
+             u.created_at, u.is_online, u.age,
+             w.coin_balance,
+             a.avatar_url
+      FROM users u
+      LEFT JOIN wallets w ON u.id = w.user_id
+      LEFT JOIN avatars a ON u.avatar_id = a.id
+      ${where}
+      ORDER BY u.created_at DESC
+      LIMIT $${idx} OFFSET $${idx + 1}
+    `, [...params, limit, offset]);
+
+    const [[{ count }]] = await pool.query(`
+      SELECT COUNT(*) as count FROM users u ${where}
+    `, params);
+
+    res.json({ status: 'success', data: users, total: parseInt(count), page, limit });
+  } catch (err) {
+    console.error('[getUsers] Error:', err);
+    res.status(500).json({ status: 'error', message: 'Internal Server Error' });
+  }
+};
+
+exports.updateUserStatus = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { account_status } = req.body;
+
+    const valid = ['good_standing', 'warned', 'suspended', 'banned'];
+    if (!valid.includes(account_status)) {
+      return res.status(400).json({ status: 'error', message: 'Invalid status' });
+    }
+
+    await pool.query(`UPDATE users SET account_status = $1 WHERE id = $2`, [account_status, userId]);
+    res.json({ status: 'success', message: `User status updated to ${account_status}` });
+  } catch (err) {
+    console.error('[updateUserStatus] Error:', err);
+    res.status(500).json({ status: 'error', message: 'Internal Server Error' });
+  }
+};
+
+// ─── Creator Applications ──────────────────────────────────────────────────────
+exports.getCreatorApplications = async (req, res) => {
+  try {
+    const status = req.query.status || 'pending_review';
+    const [apps] = await pool.query(`
+      SELECT ca.*, u.full_name, u.phone_number, u.gender, u.age,
+             a.avatar_url
+      FROM creator_applications ca
+      JOIN users u ON ca.user_id = u.id
+      LEFT JOIN avatars a ON u.avatar_id = a.id
+      WHERE ca.status = $1
+      ORDER BY ca.submitted_at DESC
+    `, [status]);
+
+    res.json({ status: 'success', data: apps });
+  } catch (err) {
+    console.error('[getCreatorApplications] Error:', err);
+    res.status(500).json({ status: 'error', message: 'Internal Server Error' });
+  }
+};
+
+exports.reviewApplication = async (req, res) => {
+  try {
+    const { applicationId } = req.params;
+    const { action, rejection_reason } = req.body; // action: 'approved' | 'rejected'
+
+    if (!['approved', 'rejected'].includes(action)) {
+      return res.status(400).json({ status: 'error', message: 'Invalid action' });
+    }
+
+    const [appRows] = await pool.query(`SELECT * FROM creator_applications WHERE id = $1`, [applicationId]);
+    if (appRows.length === 0) return res.status(404).json({ status: 'error', message: 'Application not found' });
+
+    const app = appRows[0];
+
+    await pool.query(`
+      UPDATE creator_applications SET status = $1, rejection_reason = $2, reviewed_at = NOW(), reviewed_by_admin_id = $3
+      WHERE id = $4
+    `, [action, rejection_reason || null, req.user.id, applicationId]);
+
+    if (action === 'approved') {
+      await pool.query(`UPDATE users SET user_role = 'creator' WHERE id = $1`, [app.user_id]);
+    }
+
+    res.json({ status: 'success', message: `Application ${action}` });
+  } catch (err) {
+    console.error('[reviewApplication] Error:', err);
+    res.status(500).json({ status: 'error', message: 'Internal Server Error' });
+  }
+};
+
+// ─── Withdrawal Requests ───────────────────────────────────────────────────────
+exports.getWithdrawals = async (req, res) => {
+  try {
+    const status = req.query.status || 'pending';
+    const [rows] = await pool.query(`
+      SELECT wr.*, u.full_name, u.phone_number,
+             ba.account_holder_name, ba.account_number, ba.ifsc_code, ba.passbook_photo_url,
+             ba.pan_number, ba.pan_photo_url, ba.upi_id, ba.phone_number as bank_phone
+      FROM withdrawal_requests wr
+      JOIN users u ON wr.user_id = u.id
+      LEFT JOIN bank_accounts ba ON wr.user_id = ba.user_id
+      WHERE wr.status = $1
+      ORDER BY wr.requested_at DESC
+    `, [status]);
+
+    res.json({ status: 'success', data: rows });
+  } catch (err) {
+    console.error('[getWithdrawals] Error:', err);
+    res.status(500).json({ status: 'error', message: 'Internal Server Error' });
+  }
+};
+
+exports.processWithdrawal = async (req, res) => {
+  try {
+    const { withdrawalId } = req.params;
+    const { action, admin_notes } = req.body; // action: 'success' | 'failed'
+
+    if (!['success', 'failed'].includes(action)) {
+      return res.status(400).json({ status: 'error', message: 'Invalid action' });
+    }
+
+    const [rows] = await pool.query(`SELECT * FROM withdrawal_requests WHERE id = $1`, [withdrawalId]);
+    if (rows.length === 0) return res.status(404).json({ status: 'error', message: 'Request not found' });
+
+    const wr = rows[0];
+
+    await pool.query(`
+      UPDATE withdrawal_requests SET status = $1, admin_notes = $2, processed_at = NOW()
+      WHERE id = $3
+    `, [action, admin_notes || null, withdrawalId]);
+
+    // If failed, refund coins to the creator's wallet
+    if (action === 'failed') {
+      const refundCoins = Math.round(wr.amount_inr * 10);
+      await pool.query(`UPDATE wallets SET coin_balance = coin_balance + $1 WHERE user_id = $2`, [refundCoins, wr.user_id]);
+      await pool.query(`INSERT INTO coin_transactions (user_id, type, coins) VALUES ($1, 'refund', $2)`, [wr.user_id, refundCoins]);
+    }
+
+    res.json({ status: 'success', message: `Withdrawal marked as ${action}` });
+  } catch (err) {
+    console.error('[processWithdrawal] Error:', err);
+    res.status(500).json({ status: 'error', message: 'Internal Server Error' });
+  }
+};
+
+// ─── Reports ───────────────────────────────────────────────────────────────────
+exports.getReports = async (req, res) => {
+  try {
+    const [rows] = await pool.query(`
+      SELECT ur.*, 
+             reporter.full_name as reporter_name, reporter.phone_number as reporter_phone,
+             reported.full_name as reported_name, reported.phone_number as reported_phone,
+             reported.account_status
+      FROM user_reports ur
+      JOIN users reporter ON ur.reporter_id = reporter.id
+      JOIN users reported ON ur.reported_id = reported.id
+      WHERE ur.status = 'pending'
+      ORDER BY ur.created_at DESC
+    `);
+    res.json({ status: 'success', data: rows });
+  } catch (err) {
+    console.error('[getReports] Error:', err);
+    res.status(500).json({ status: 'error', message: 'Internal Server Error' });
+  }
+};
+
+exports.resolveReport = async (req, res) => {
+  try {
+    const { reportId } = req.params;
+    const { action, reported_user_id } = req.body; // action: 'warn' | 'ban' | 'dismiss'
+
+    await pool.query(`UPDATE user_reports SET status = 'reviewed' WHERE id = $1`, [reportId]);
+
+    if (action === 'warn') {
+      await pool.query(`UPDATE users SET account_status = 'warned' WHERE id = $1`, [reported_user_id]);
+    } else if (action === 'ban') {
+      await pool.query(`UPDATE users SET account_status = 'banned' WHERE id = $1`, [reported_user_id]);
+    }
+
+    res.json({ status: 'success', message: `Report resolved` });
+  } catch (err) {
+    console.error('[resolveReport] Error:', err);
+    res.status(500).json({ status: 'error', message: 'Internal Server Error' });
+  }
+};
+
+// ─── Support Tickets ───────────────────────────────────────────────────────────
+exports.getTickets = async (req, res) => {
+  try {
+    const [rows] = await pool.query(`
+      SELECT st.*, u.full_name, u.phone_number
+      FROM support_tickets st
+      JOIN users u ON st.user_id = u.id
+      WHERE st.status = 'active'
+      ORDER BY st.created_at DESC
+    `);
+    res.json({ status: 'success', data: rows });
+  } catch (err) {
+    console.error('[getTickets] Error:', err);
+    res.status(500).json({ status: 'error', message: 'Internal Server Error' });
+  }
+};
+
+exports.replyTicket = async (req, res) => {
+  try {
+    const { ticketId } = req.params;
+    const { message } = req.body;
+
+    await pool.query(`
+      INSERT INTO support_ticket_messages (ticket_id, sender_type, message)
+      VALUES ($1, 'admin', $2)
+    `, [ticketId, message]);
+
+    res.json({ status: 'success', message: 'Reply sent' });
+  } catch (err) {
+    console.error('[replyTicket] Error:', err);
+    res.status(500).json({ status: 'error', message: 'Internal Server Error' });
+  }
+};
+
+exports.closeTicket = async (req, res) => {
+  try {
+    const { ticketId } = req.params;
+    await pool.query(`UPDATE support_tickets SET status = 'resolved', resolved_at = NOW() WHERE id = $1`, [ticketId]);
+    res.json({ status: 'success', message: 'Ticket closed' });
+  } catch (err) {
+    console.error('[closeTicket] Error:', err);
+    res.status(500).json({ status: 'error', message: 'Internal Server Error' });
+  }
+};
+
+// ─── Revenue Chart ─────────────────────────────────────────────────────────────
+exports.getRevenueChart = async (req, res) => {
+  try {
+    const [rows] = await pool.query(`
+      SELECT DATE(created_at) as date, COALESCE(SUM(coins), 0) as coins
+      FROM coin_transactions
+      WHERE type = 'purchase' AND created_at >= NOW() - INTERVAL '30 days'
+      GROUP BY DATE(created_at)
+      ORDER BY date ASC
+    `);
+    res.json({ status: 'success', data: rows });
+  } catch (err) {
+    console.error('[getRevenueChart] Error:', err);
+    res.status(500).json({ status: 'error', message: 'Internal Server Error' });
+  }
+};
+
+// ─── Call Logs ─────────────────────────────────────────────────────────────────
+exports.getCallLogs = async (req, res) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 30;
+    const offset = (page - 1) * limit;
+
+    const [rows] = await pool.query(`
+      SELECT cl.id, cl.call_type, cl.status, cl.duration_seconds, cl.coins_charged, cl.created_at,
+             caller.full_name as caller_name, caller.phone_number as caller_phone,
+             receiver.full_name as receiver_name, receiver.phone_number as receiver_phone
+      FROM call_logs cl
+      JOIN users caller ON cl.caller_id = caller.id
+      JOIN users receiver ON cl.receiver_id = receiver.id
+      ORDER BY cl.created_at DESC
+      LIMIT $1 OFFSET $2
+    `, [limit, offset]);
+
+    res.json({ status: 'success', data: rows });
+  } catch (err) {
+    console.error('[getCallLogs] Error:', err);
+    res.status(500).json({ status: 'error', message: 'Internal Server Error' });
+  }
+};
