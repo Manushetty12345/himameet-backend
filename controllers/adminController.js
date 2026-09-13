@@ -1,4 +1,4 @@
-const pool = require('../db');
+﻿const pool = require('../db');
 const jwt = require('jsonwebtoken');
 const bhashsms = require('../utils/bhashsms');
 
@@ -488,3 +488,4 @@ exports.getCallLogs = async (req, res) => {
     res.status(500).json({ status: 'error', message: 'Internal Server Error' });
   }
 };
+
