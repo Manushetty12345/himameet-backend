@@ -183,7 +183,7 @@ exports.submitCreatorApplication = async (req, res) => {
     const { gender, avatar_id, language_id, age, bio, interests } = req.body;
     
     // The uploaded file will be available in req.file
-
+    let voice_sample_url = null;
     let ai_gender_score = null;
 
     if (req.file) {
@@ -203,7 +203,7 @@ exports.submitCreatorApplication = async (req, res) => {
             headers: {
               'Content-Type': 'audio/mp4',
               // Use API Key if available, otherwise rely on free tier rate-limits
-              ...(process.env.HUGGINGFACE_API_KEY ? { 'Authorization': Bearer  } : {})
+              ...(process.env.HUGGINGFACE_API_KEY ? { 'Authorization': `Bearer ${process.env.HUGGINGFACE_API_KEY}` } : {})
             }
           }
         );
@@ -226,7 +226,7 @@ exports.submitCreatorApplication = async (req, res) => {
       return res.status(401).json({ status: 'error', message: 'Invalid temporary token.' });
     }
 
-    const [existing] = await pool.query(SELECT * FROM users WHERE phone_number = , [temp_phone]);
+    const [existing] = await pool.query(`SELECT * FROM users WHERE phone_number = $1`, [temp_phone]);
     if (existing.length > 0) {
       return res.status(400).json({ status: 'error', message: 'User already completed profile' });
     }
@@ -243,8 +243,8 @@ exports.submitCreatorApplication = async (req, res) => {
 
     // Insert into users
     const [result] = await pool.query(
-      INSERT INTO users (phone_number, country_code, full_name, user_role, gender, avatar_id, language_id, age, about_me, is_verified) 
-       VALUES (, , , , , , , , , ) RETURNING id,
+      `INSERT INTO users (phone_number, country_code, full_name, user_role, gender, avatar_id, language_id, age, about_me, is_verified) 
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id`,
       [temp_phone, temp_country_code || '+91', fullName, 'creator', gender, avatar_id, language_id, age, bio, false]
     );
     const newUserId = result[0].id;
@@ -255,7 +255,7 @@ exports.submitCreatorApplication = async (req, res) => {
         let parsedInterests = JSON.parse(interests);
         for (let tagId of parsedInterests) {
           await pool.query(
-            INSERT INTO user_tags (user_id, tag_id) VALUES (, ) ON CONFLICT DO NOTHING,
+            `INSERT INTO user_tags (user_id, tag_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
             [newUserId, tagId]
           );
         }
@@ -266,11 +266,12 @@ exports.submitCreatorApplication = async (req, res) => {
 
     // Insert into creator_applications
     await pool.query(
-      INSERT INTO creator_applications (user_id, status, voice_sample_url) VALUES (, 'pending_review', ),
+      `INSERT INTO creator_applications (user_id, status, voice_sample_url, ai_gender_score) VALUES ($1, 'pending_review', $2, $3)`,
       [newUserId, voice_sample_url, ai_gender_score]
     );
 
-    const token = jwt.sign({ id: newUserId, role: 'creator' }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
+    const jwt = require('jsonwebtoken');
+    const token = jwt.sign({ id: newUserId, role: 'creator' }, process.env.JWT_SECRET, { expiresIn: process.env.JWT_EXPIRES_IN });
 
     res.status(200).json({
       status: 'success',
@@ -291,6 +292,3 @@ exports.submitCreatorApplication = async (req, res) => {
     res.status(500).json({ status: 'error', message: 'Internal Server Error' });
   }
 };
-
-
-
