@@ -2,10 +2,12 @@ const pool = require('../db');
 
 exports.sendGift = async (req, res) => {
   try {
+    console.log('[sendGift] Body received:', req.body);
     const userId = req.user.id;
     const { giftId, receiverId } = req.body;
 
     if (!receiverId) {
+      console.log('[sendGift] Missing receiverId');
       return res.status(400).json({ status: 'error', message: 'Receiver ID is required' });
     }
 
@@ -19,6 +21,7 @@ exports.sendGift = async (req, res) => {
     
     const foundGift = defaultGifts.find(g => g.id === giftId);
     if (!foundGift) {
+      console.log('[sendGift] Gift not found:', giftId);
       return res.status(404).json({ status: 'error', message: 'Gift not found' });
     }
     const giftPrice = foundGift.price;
@@ -26,27 +29,39 @@ exports.sendGift = async (req, res) => {
 
     const [walletRows] = await pool.query('SELECT coin_balance FROM wallets WHERE user_id = $1', [userId]);
     const balance = walletRows.length > 0 ? walletRows[0].coin_balance : 0;
+    console.log(`[sendGift] Sender ${userId} balance: ${balance}, cost: ${giftPrice}`);
 
     if (balance < giftPrice) {
+      console.log('[sendGift] Insufficient coins');
       return res.status(400).json({ status: 'error', message: 'Insufficient coins' });
     }
 
     // Deduct from sender
+    console.log(`[sendGift] Deducting ${giftPrice} from sender ${userId}`);
     await pool.query('UPDATE wallets SET coin_balance = coin_balance - $1 WHERE user_id = $2', [giftPrice, userId]);
 
     // Add to receiver
-    await pool.query('UPDATE wallets SET coin_balance = coin_balance + $1 WHERE user_id = $2', [giftPrice, receiverId]);
+    console.log(`[sendGift] Adding ${giftPrice} to receiver ${receiverId}`);
+    const [updateRes] = await pool.query('UPDATE wallets SET coin_balance = coin_balance + $1 WHERE user_id = $2 RETURNING *', [giftPrice, receiverId]);
+    console.log(`[sendGift] Receiver wallet update result:`, updateRes);
+
+    if (updateRes.length === 0) {
+      console.log(`[sendGift] CRITICAL: Receiver ${receiverId} wallet not found! Creating one...`);
+      await pool.query('INSERT INTO wallets (user_id, coin_balance) VALUES ($1, $2)', [receiverId, giftPrice]);
+    }
 
     // Log the transaction for the receiver's earnings
+    console.log(`[sendGift] Logging coin_transaction for ${receiverId}`);
     await pool.query('INSERT INTO coin_transactions (user_id, type, coins) VALUES ($1, $2, $3)', [receiverId, 'gift', giftPrice]);
 
     // Log it into call_logs as a 'gift' so it shows up in Creator Call History
-    // duration_seconds = 0, call_type = 'gift', status = giftName
+    console.log(`[sendGift] Inserting into call_logs`);
     await pool.query(
       'INSERT INTO call_logs (caller_id, receiver_id, call_type, status, duration_seconds, coins_charged) VALUES ($1, $2, $3, $4, $5, $6)',
       [userId, receiverId, 'gift', `Gifted ${giftName}`, 0, giftPrice]
     );
 
+    console.log(`[sendGift] Success!`);
     res.json({ status: 'success', message: 'Gift sent successfully' });
   } catch (err) {
     console.error('Error sending gift:', err);
