@@ -29,21 +29,21 @@ exports.getDashboardHome = async (req, res) => {
     const [todayEarningRows] = await pool.query(`
       SELECT SUM(coins) as total_coins 
       FROM coin_transactions 
-      WHERE user_id = $1 AND type IN ('call_earn', 'chat_earn') AND DATE(created_at) = $2
+      WHERE user_id = $1 AND type IN ('call_earn', 'chat_earn', 'gift') AND DATE(created_at) = $2
     `, [creatorId, today]);
     
     // Yesterday Earnings
     const [yesterdayEarningRows] = await pool.query(`
       SELECT SUM(coins) as total_coins 
       FROM coin_transactions 
-      WHERE user_id = $1 AND type IN ('call_earn', 'chat_earn') AND DATE(created_at) = $2
+      WHERE user_id = $1 AND type IN ('call_earn', 'chat_earn', 'gift') AND DATE(created_at) = $2
     `, [creatorId, yesterdayDate]);
     
     // This Week Earnings
     const [weekEarningRows] = await pool.query(`
       SELECT SUM(coins) as total_coins 
       FROM coin_transactions 
-      WHERE user_id = $1 AND type IN ('call_earn', 'chat_earn') AND DATE(created_at) >= $2
+      WHERE user_id = $1 AND type IN ('call_earn', 'chat_earn', 'gift') AND DATE(created_at) >= $2
     `, [creatorId, sevenDaysAgoDate]);
 
     // Total Time Spent
