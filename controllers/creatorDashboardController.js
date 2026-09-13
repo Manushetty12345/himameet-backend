@@ -223,6 +223,9 @@ exports.getEarningsSummary = async (req, res) => {
     const [walletRows] = await pool.query(`SELECT coin_balance FROM wallets WHERE user_id = $1`, [creatorId]);
     const currentCoins = walletRows.length > 0 ? parseFloat(walletRows[0].coin_balance) : 0;
 
+    const [withdrawnRows] = await pool.query(`SELECT SUM(ABS(coins)) as total FROM coin_transactions WHERE user_id = $1 AND type = 'withdrawal'`, [creatorId]);
+    const withdrawnCoins = withdrawnRows[0].total || 0;
+
     res.status(200).json({
       status: 'success',
       data: {
@@ -235,7 +238,9 @@ exports.getEarningsSummary = async (req, res) => {
         today_earnings_coins: parseInt(todayCoins),
         today_earnings_inr: parseFloat((todayCoins * conversionRate).toFixed(2)),
         available_balance_coins: parseInt(currentCoins),
-        available_balance_inr: parseFloat((currentCoins * conversionRate).toFixed(2))
+        available_balance_inr: parseFloat((currentCoins * conversionRate).toFixed(2)),
+        withdrawn_coins: parseInt(withdrawnCoins),
+        withdrawn_inr: parseFloat((withdrawnCoins * conversionRate).toFixed(2))
       }
     });
   } catch (error) {
