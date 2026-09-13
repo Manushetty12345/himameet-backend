@@ -4,6 +4,46 @@ const bhashsms = require('../utils/bhashsms');
 
 const JWT_SECRET = process.env.JWT_SECRET;
 
+// ─── One-Time Setup: Create First Admin ──────────────────────────────────────
+// Only works if NO admin exists in the database yet (safe to leave in code)
+exports.setupFirstAdmin = async (req, res) => {
+  try {
+    const { phone_number, secret_key } = req.body;
+
+    // Basic secret to prevent random people from calling this
+    if (secret_key !== 'HIMAMEET_ADMIN_SETUP') {
+      return res.status(403).json({ status: 'error', message: 'Invalid setup key' });
+    }
+
+    if (!phone_number) {
+      return res.status(400).json({ status: 'error', message: 'Phone number required' });
+    }
+
+    // Block if admin already exists
+    const [existingAdmins] = await pool.query(`SELECT id FROM users WHERE is_admin = true`);
+    if (existingAdmins.length > 0) {
+      return res.status(403).json({ status: 'error', message: 'Admin already exists. Cannot run setup again.' });
+    }
+
+    // Mark the user as admin
+    const [updated] = await pool.query(
+      `UPDATE users SET is_admin = true WHERE phone_number = $1 RETURNING id, full_name, phone_number`,
+      [phone_number]
+    );
+
+    if (updated.length === 0) {
+      return res.status(404).json({ status: 'error', message: 'Phone number not found. Make sure this number is registered in the app first.' });
+    }
+
+    console.log(`[setupFirstAdmin] ✅ Admin created: ${phone_number}`);
+    res.json({ status: 'success', message: `✅ ${phone_number} is now an admin! You can now login with OTP.`, admin: updated[0] });
+  } catch (err) {
+    console.error('[setupFirstAdmin] Error:', err);
+    res.status(500).json({ status: 'error', message: err.message });
+  }
+};
+
+
 // ─── Admin Send OTP ───────────────────────────────────────────────────────────
 exports.sendAdminOtp = async (req, res) => {
   try {

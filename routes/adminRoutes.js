@@ -11,6 +11,9 @@ const adminOnly = (req, res, next) => {
   next();
 };
 
+// One-time setup: create first admin (only works if NO admin exists yet)
+router.post('/setup', adminController.setupFirstAdmin);
+
 // Public - OTP Login (2 steps)
 router.post('/send-otp', adminController.sendAdminOtp);
 router.post('/verify-otp', adminController.verifyAdminOtp);
