@@ -61,6 +61,15 @@ exports.verifyOtp = async (req, res) => {
       // Existing User
       const user = rows[0];
       const token = jwt.sign({ id: user.id, role: user.user_role }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
+      
+      let application_status = null;
+      if (user.user_role === 'creator') {
+        const [appRows] = await pool.query(
+          `SELECT status FROM creator_applications WHERE user_id = $1 ORDER BY submitted_at DESC LIMIT 1`,
+          [user.id]
+        );
+        if (appRows.length > 0) application_status = appRows[0].status;
+      }
 
       return res.status(200).json({
         status: 'success',
@@ -68,6 +77,7 @@ exports.verifyOtp = async (req, res) => {
         data: {
           is_new_user: false,
           token,
+          application_status,
           user: {
             id: user.id,
             role: user.user_role,
@@ -130,6 +140,15 @@ exports.truecallerLogin = async (req, res) => {
     if (rows.length > 0) {
       const user = rows[0];
       const token = jwt.sign({ id: user.id, role: user.user_role }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
+      
+      let application_status = null;
+      if (user.user_role === 'creator') {
+        const [appRows] = await pool.query(
+          `SELECT status FROM creator_applications WHERE user_id = $1 ORDER BY submitted_at DESC LIMIT 1`,
+          [user.id]
+        );
+        if (appRows.length > 0) application_status = appRows[0].status;
+      }
 
       return res.status(200).json({
         status: 'success',
@@ -137,6 +156,7 @@ exports.truecallerLogin = async (req, res) => {
         data: {
           is_new_user: false,
           token,
+          application_status,
           user: {
             id: user.id,
             role: user.user_role,
