@@ -3,14 +3,18 @@ const pool = require('../db');
 exports.sendGift = async (req, res) => {
   try {
     const userId = req.user.id;
-    const { giftId } = req.body;
+    const { giftId, receiverId } = req.body;
+
+    if (!receiverId) {
+      return res.status(400).json({ status: 'error', message: 'Receiver ID is required' });
+    }
 
     const defaultGifts = [
-      { id: 'rose', price: 10 },
-      { id: 'coffee', price: 25 },
-      { id: 'heart', price: 50 },
-      { id: 'diamond', price: 100 },
-      { id: 'crown', price: 500 }
+      { id: 'rose', price: 10, name: 'Rose' },
+      { id: 'coffee', price: 25, name: 'Coffee' },
+      { id: 'heart', price: 50, name: 'Heart' },
+      { id: 'diamond', price: 100, name: 'Diamond' },
+      { id: 'crown', price: 500, name: 'Crown' }
     ];
     
     const foundGift = defaultGifts.find(g => g.id === giftId);
@@ -18,6 +22,7 @@ exports.sendGift = async (req, res) => {
       return res.status(404).json({ status: 'error', message: 'Gift not found' });
     }
     const giftPrice = foundGift.price;
+    const giftName = foundGift.name;
 
     const [walletRows] = await pool.query('SELECT coin_balance FROM wallets WHERE user_id = $1', [userId]);
     const balance = walletRows.length > 0 ? walletRows[0].coin_balance : 0;
@@ -26,9 +31,21 @@ exports.sendGift = async (req, res) => {
       return res.status(400).json({ status: 'error', message: 'Insufficient coins' });
     }
 
+    // Deduct from sender
     await pool.query('UPDATE wallets SET coin_balance = coin_balance - $1 WHERE user_id = $2', [giftPrice, userId]);
 
-    // Optional: Log the transaction if there is a transactions table
+    // Add to receiver
+    await pool.query('UPDATE wallets SET coin_balance = coin_balance + $1 WHERE user_id = $2', [giftPrice, receiverId]);
+
+    // Log the transaction for the receiver's earnings
+    await pool.query('INSERT INTO coin_transactions (user_id, type, coins) VALUES ($1, $2, $3)', [receiverId, 'gift', giftPrice]);
+
+    // Log it into call_logs as a 'gift' so it shows up in Creator Call History
+    // duration_seconds = 0, call_type = 'gift', status = giftName
+    await pool.query(
+      'INSERT INTO call_logs (caller_id, receiver_id, call_type, status, duration_seconds, coins_charged) VALUES ($1, $2, $3, $4, $5, $6)',
+      [userId, receiverId, 'gift', `Gifted ${giftName}`, 0, giftPrice]
+    );
 
     res.json({ status: 'success', message: 'Gift sent successfully' });
   } catch (err) {
