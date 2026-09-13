@@ -2,7 +2,7 @@
 const jwt = require('jsonwebtoken');
 const { v4: uuidv4 } = require('uuid');
 
-const JWT_SECRET = process.env.JWT_SECRET;
+const JWT_SECRET = process.env.JWT_SECRET || 'super_secret_hima_key_2026';
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '30d';
 
 /**
@@ -271,7 +271,7 @@ exports.submitCreatorApplication = async (req, res) => {
     );
 
     const jwt = require('jsonwebtoken');
-    const token = jwt.sign({ id: newUserId, role: 'creator' }, process.env.JWT_SECRET, { expiresIn: process.env.JWT_EXPIRES_IN });
+    const token = jwt.sign({ id: newUserId, role: 'creator' }, process.env.JWT_SECRET || 'super_secret_hima_key_2026', { expiresIn: process.env.JWT_EXPIRES_IN || '30d' });
 
     res.status(200).json({
       status: 'success',
@@ -292,3 +292,4 @@ exports.submitCreatorApplication = async (req, res) => {
     res.status(500).json({ status: 'error', message: 'Internal Server Error' });
   }
 };
+
