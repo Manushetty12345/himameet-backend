@@ -80,7 +80,8 @@ exports.getFriends = async (req, res) => {
          WHERE m2.conversation_id = c.id 
            AND m2.sender_id != $1 
            AND m2.status IN ('sent', 'delivered')) AS unread_count,
-        'friend' AS status
+        'friend' AS status,
+          pc.id IS NOT NULL AS is_pinned
       FROM friendships f
       JOIN users u ON (u.id = f.user_one_id OR u.id = f.user_two_id) AND u.id != $1
       LEFT JOIN avatars a ON u.avatar_id = a.id
@@ -405,5 +406,35 @@ exports.blockUser = async (req, res) => {
   } catch (error) {
     console.error('Error blocking user:', error);
     res.status(500).json({ status: 'error', message: 'Internal Server Error' });
+  }
+};
+
+/**
+ * 7.9 Toggle Pin
+ */
+exports.togglePin = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { friend_id } = req.params;
+
+    // Check if pin exists
+    const [existing] = await pool.query(
+      'SELECT id FROM pinned_chats WHERE user_id = $1 AND friend_id = $2',
+      [userId, friend_id]
+    );
+
+    if (existing.length > 0) {
+      await pool.query('DELETE FROM pinned_chats WHERE id = $1', [existing[0].id]);
+      res.status(200).json({ status: 'success', message: 'Chat unpinned' });
+    } else {
+      await pool.query(
+        'INSERT INTO pinned_chats (user_id, friend_id) VALUES ($1, $2)',
+        [userId, friend_id]
+      );
+      res.status(200).json({ status: 'success', message: 'Chat pinned' });
+    }
+  } catch (error) {
+    console.error('Error in togglePin:', error);
+    res.status(500).json({ status: 'error', message: 'Internal server error' });
   }
 };

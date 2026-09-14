@@ -458,3 +458,13 @@ CREATE TABLE settings (
 -- Default payout rate: 10 coins = ₹1 (female earns ₹1 per 10 coins)
 INSERT INTO settings (key, value, description) VALUES
     ('coins_per_rupee', '10', 'Number of coins a creator needs to earn ₹1. Formula: rupees = coins / coins_per_rupee');
+
+
+-- Added for pinning chats
+CREATE TABLE pinned_chats (
+    id              BIGSERIAL PRIMARY KEY,
+    user_id         BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    friend_id       BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    created_at      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(user_id, friend_id)
+);

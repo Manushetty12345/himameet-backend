@@ -33,4 +33,7 @@ router.post('/remove', protect, friendController.removeFriend);
 // 7.8 Block User
 router.post('/block', protect, friendController.blockUser);
 
+// 7.9 Toggle Pin
+router.post('/:friend_id/pin', protect, friendController.togglePin);
+
 module.exports = router;
