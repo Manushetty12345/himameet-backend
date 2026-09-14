@@ -158,7 +158,7 @@ exports.toggleStatus = async (req, res) => {
         const [subRows] = await pool.query('SELECT subscriber_id FROM online_notify_subscriptions WHERE target_user_id = $1', [creatorId]);
         if (subRows && subRows.length > 0) {
           // Get creator details
-          const [creatorRows] = await pool.query('SELECT username, avatar_url FROM users WHERE id = $1', [creatorId]);
+          const [creatorRows] = await pool.query('SELECT u.full_name, a.avatar_url FROM users u LEFT JOIN avatars a ON u.avatar_id = a.id WHERE u.id = $1', [creatorId]);
           if (creatorRows.length > 0) {
             const creator = creatorRows[0];
             // Get current overall status
@@ -171,7 +171,7 @@ exports.toggleStatus = async (req, res) => {
             
             const creatorData = {
               creatorId: creatorId,
-              name: creator.username || 'Creator',
+              name: creator.full_name || 'Creator',
               avatar_url: creator.avatar_url || 'https://hima-bucket.s3.amazonaws.com/default-avatar.png',
               availableFor: availableFor
             };
