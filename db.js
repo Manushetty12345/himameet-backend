@@ -21,6 +21,18 @@ pool.connect()
     
     try {
       await client.query('ALTER TABLE call_logs ADD COLUMN IF NOT EXISTS receiver_deleted BOOLEAN DEFAULT false');
+
+        await client.query(`
+          CREATE TABLE IF NOT EXISTS pinned_chats (
+            id BIGSERIAL PRIMARY KEY,
+            user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            friend_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(user_id, friend_id)
+          );
+        `);
+        console.log('? Migration: ensured pinned_chats table exists');
+  
       console.log('✅ Migration: ensured receiver_deleted column exists');
 
       // Admin columns
