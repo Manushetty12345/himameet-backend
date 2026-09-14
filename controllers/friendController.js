@@ -88,6 +88,7 @@ exports.getFriends = async (req, res) => {
       LEFT JOIN creator_settings cs ON cs.user_id = u.id
       LEFT JOIN conversations c ON (c.user_one_id = u.id AND c.user_two_id = $1) OR (c.user_one_id = $1 AND c.user_two_id = u.id)
       LEFT JOIN messages m ON m.id = c.last_message_id
+        LEFT JOIN pinned_chats pc ON pc.user_id = $1 AND pc.friend_id = u.id
       WHERE f.user_one_id = $2 OR f.user_two_id = $3
     `, [userId, userId, userId]);
 
@@ -105,7 +106,8 @@ exports.getFriends = async (req, res) => {
       lastMessageTime: row.lastMessageTime,
       lastSeen: row.last_seen_at,
       conversationId: row.conversation_id,
-      unreadCount: row.unread_count
+      unreadCount: row.unread_count,
+        is_pinned: row.is_pinned
     }));
 
     res.status(200).json({
@@ -143,6 +145,7 @@ exports.getFavourites = async (req, res) => {
       LEFT JOIN creator_settings cs ON cs.user_id = u.id
       LEFT JOIN conversations c ON (c.user_one_id = u.id AND c.user_two_id = $1) OR (c.user_one_id = $1 AND c.user_two_id = u.id)
       LEFT JOIN messages m ON m.id = c.last_message_id
+        LEFT JOIN pinned_chats pc ON pc.user_id = $1 AND pc.friend_id = u.id
       WHERE ff.user_id = $1
     `, [userId]);
     const formattedData = rows.map(row => ({
