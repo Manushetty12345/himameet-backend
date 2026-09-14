@@ -6,6 +6,9 @@ function notifyFriendUpdate(req, user1, user2) {
   if (io) {
     if (user1) io.to(`user_${user1}`).emit('friend_update');
     if (user2) io.to(`user_${user2}`).emit('friend_update');
+    console.log(`?? [WebSocket] Emitted 'friend_update' event to user_${user1} and user_${user2}`);
+  } else {
+    console.log('?? [WebSocket ERROR] IO is undefined in req.app!');
   }
 }
 
@@ -38,6 +41,7 @@ exports.sendRequest = async (req, res) => {
       ON CONFLICT (sender_id, receiver_id) DO NOTHING
     `, [senderId, target_user_id]);
 
+    notifyFriendUpdate(req, senderId, target_user_id);
     res.status(200).json({
       status: 'success',
       message: 'Friend request sent.'
@@ -290,6 +294,7 @@ exports.cancelRequest = async (req, res) => {
       WHERE (sender_id = $1 AND receiver_id = $2) OR (sender_id = $2 AND receiver_id = $1)
     `, [userId, target_user_id]);
 
+    notifyFriendUpdate(req, userId, target_user_id);
     res.status(200).json({ status: 'success', message: 'Friend request cancelled.' });
   } catch (error) {
     console.error('Error cancelling request:', error);
@@ -312,6 +317,7 @@ exports.acceptRequest = async (req, res) => {
       WHERE sender_id = $1 AND receiver_id = $2 AND status = 'pending'
     `, [target_user_id, userId]);
 
+    notifyFriendUpdate(req, userId, target_user_id);
     res.status(200).json({ status: 'success', message: 'Request accepted. Waiting for sender confirmation.' });
   } catch (error) {
     console.error('Error accepting request:', error);
@@ -339,6 +345,7 @@ exports.confirmRequest = async (req, res) => {
       [userId, target_user_id]
     );
 
+    notifyFriendUpdate(req, userId, target_user_id);
     res.status(200).json({ status: 'success', message: 'Friendship confirmed!' });
   } catch (error) {
     console.error('Error confirming friendship:', error);
@@ -359,6 +366,7 @@ exports.removeFriend = async (req, res) => {
       WHERE (user_one_id = $1 AND user_two_id = $2) OR (user_one_id = $2 AND user_two_id = $1)
     `, [userId, target_user_id]);
 
+    notifyFriendUpdate(req, userId, target_user_id);
     res.status(200).json({ status: 'success', message: 'Friend removed.' });
   } catch (error) {
     console.error('Error removing friend:', error);
