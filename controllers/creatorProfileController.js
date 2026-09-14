@@ -68,7 +68,12 @@ exports.getProfile = async (req, res) => {
       WHERE subscriber_id = $1 AND target_user_id = $2
     `, [userId, creatorId]);
 
-    const [blockRows] = await pool.query(`
+    const [favouriteRows] = await pool.query(`
+        SELECT id FROM favourite_friends 
+        WHERE user_id = $1 AND friend_id = $2
+      `, [userId, creatorId]);
+
+      const [blockRows] = await pool.query(`
       SELECT id FROM blocked_users 
       WHERE blocker_id = $1 AND blocked_id = $2
     `, [userId, creatorId]);
@@ -89,6 +94,7 @@ exports.getProfile = async (req, res) => {
         },
         friendship_status: friendshipStatus,
         is_notify_online_enabled: notifyRows.length > 0,
+          is_favourite: favouriteRows.length > 0,
         is_blocked: blockRows.length > 0
       }
     });
