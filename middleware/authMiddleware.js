@@ -1,5 +1,5 @@
 const jwt = require('jsonwebtoken');
-const pool = require('../config/db'); // Added DB pool
+const pool = require('../db'); // Added DB pool
 
 const JWT_SECRET = process.env.JWT_SECRET;
 
