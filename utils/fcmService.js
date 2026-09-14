@@ -118,19 +118,19 @@ async function sendCreatorOnlineNotification(targetUserId, creatorData) {
     const [rows] = await pool.query('SELECT fcm_token FROM users WHERE id = $1', [targetUserId]);
     if (!rows || rows.length === 0 || !rows[0].fcm_token) return;
 
-    let bodyText = `${creatorData.name} is online!`;
+    let bodyText = "She's ready for audio & video calls. Don't miss out!";
     if (creatorData.availableFor === 'both') {
-      bodyText = `${creatorData.name} is online and available for both!`;
+      bodyText = "She's ready for audio & video calls. Don't miss out!";
     } else if (creatorData.availableFor === 'audio') {
-      bodyText = `${creatorData.name} is online and available for call!`;
+      bodyText = "She's ready for audio calls. Don't miss out!";
     } else if (creatorData.availableFor === 'video') {
-      bodyText = `${creatorData.name} is online and available for video call!`;
+      bodyText = "She's ready for video calls. Don't miss out!";
     }
 
     const message = {
       token: rows[0].fcm_token,
       notification: {
-        title: 'Creator Online',
+        title: `${creatorData.name} is online!`,
         body: bodyText,
       },
       data: {
