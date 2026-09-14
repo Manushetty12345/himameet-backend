@@ -156,11 +156,21 @@ exports.toggleDnd = async (req, res) => {
     const userId = req.user.id;
     const { enabled } = req.body;
 
-    await pool.query(`UPDATE users SET dnd_enabled = $1 WHERE id = $2`, [enabled ? true : false, userId]);
+    let dnd_until = null;
+    if (enabled) {
+      const [rows] = await pool.query(
+        `UPDATE users SET dnd_enabled = true, dnd_until = NOW() + INTERVAL '1 hour' WHERE id = $1 RETURNING dnd_until`,
+        [userId]
+      );
+      dnd_until = rows.length > 0 ? rows[0].dnd_until : null;
+    } else {
+      await pool.query(`UPDATE users SET dnd_enabled = false, dnd_until = NULL WHERE id = $1`, [userId]);
+    }
 
     res.status(200).json({
       status: 'success',
-      message: 'DND status updated.'
+      message: 'DND status updated.',
+      dnd_until
     });
   } catch (error) {
     console.error('Error toggling DND:', error);
