@@ -11,13 +11,15 @@ const protect = async (req, res, next) => {
       token = req.headers.authorization.split(' ')[1];
       const decoded = jwt.verify(token, JWT_SECRET);
       
-      // Strict Ban Check
-      const [userRows] = await pool.query(`SELECT account_status FROM users WHERE id = $1`, [decoded.id]);
-      if (userRows.length === 0) {
-        return res.status(401).json({ status: 'error', message: 'User not found' });
-      }
-      if (userRows[0].account_status === 'banned') {
-        return res.status(403).json({ status: 'error', message: 'ACCOUNT_BANNED' });
+      // Strict Ban Check (Only for permanent tokens that have an ID)
+      if (decoded.id) {
+        const [userRows] = await pool.query(`SELECT account_status FROM users WHERE id = $1`, [decoded.id]);
+        if (userRows.length === 0) {
+          return res.status(401).json({ status: 'error', message: 'User not found' });
+        }
+        if (userRows[0].account_status === 'banned') {
+          return res.status(403).json({ status: 'error', message: 'ACCOUNT_BANNED' });
+        }
       }
 
       req.user = decoded;
