@@ -29,6 +29,11 @@ router.get('/revenue-chart', adminController.getRevenueChart);
 router.get('/users', adminController.getUsers);
 router.put('/users/:userId/status', adminController.updateUserStatus);
 
+// Global Settings
+router.get('/global-rates', adminController.getGlobalRates);
+router.put('/global-rates', adminController.updateGlobalRates);
+
+
 // Creator Applications
 router.get('/applications', adminController.getCreatorApplications);
 router.put('/applications/:applicationId/review', adminController.reviewApplication);
