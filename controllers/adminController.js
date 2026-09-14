@@ -415,13 +415,33 @@ exports.resolveReport = async (req, res) => {
     const { reportId } = req.params;
     const { action, reported_user_id } = req.body; // action: 'warn' | 'ban' | 'dismiss'
 
-    await pool.query(`UPDATE user_reports SET status = 'reviewed' WHERE id = $1`, [reportId]);
+    await pool.query(`UPDATE user_reports SET status = 'resolved' WHERE id = $1`, [reportId]);
 
     if (action === 'warn') {
-      await pool.query(`UPDATE users SET account_status = 'warned' WHERE id = $1`, [reported_user_id]);
-    } else if (action === 'ban') {
-      await pool.query(`UPDATE users SET account_status = 'banned' WHERE id = $1`, [reported_user_id]);
-    }
+        await pool.query(`UPDATE users SET account_status = 'warned' WHERE id = $1`, [reported_user_id]);
+        
+        // Insert into user_warnings table for dynamic warnings
+        await pool.query(
+          `INSERT INTO user_warnings (user_id, reason, issued_by_admin_id) VALUES ($1, $2, $3)`,
+          [reported_user_id, 'Violated Community Guidelines', req.user ? req.user.id : null]
+        );
+        
+        // Notify the user dynamically
+        const io = req.app.get('io');
+        if (io) {
+          io.to(`user_${reported_user_id}`).emit('warning_received', {
+            message: 'You have received a warning from the admin for violating community guidelines.'
+          });
+        }
+      } else if (action === 'ban') {
+        await pool.query(`UPDATE users SET account_status = 'banned' WHERE id = $1`, [reported_user_id]);
+        
+        // Force disconnect the user dynamically
+        const io = req.app.get('io');
+        if (io) {
+          io.to(`user_${reported_user_id}`).emit('account_banned');
+        }
+      }
 
     res.json({ status: 'success', message: `Report resolved` });
   } catch (err) {
