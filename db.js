@@ -25,6 +25,7 @@ pool.connect()
 
       // Admin columns
       await client.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS is_admin BOOLEAN DEFAULT false');
+      await client.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS dnd_until TIMESTAMP WITH TIME ZONE');
       await client.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS admin_password VARCHAR(100)');
       console.log('✅ Migration: ensured admin columns exist');
       

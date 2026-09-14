@@ -15,6 +15,7 @@ exports.getMyProfile = async (req, res) => {
         u.avatar_id,
         u.gender,
         u.dnd_enabled,
+          u.dnd_until,
         l.name_english AS language_name,
         l.name_native  AS language_native
       FROM users u

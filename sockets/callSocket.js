@@ -23,6 +23,14 @@ module.exports = (io) => {
       const { targetId, type, rate } = data;
       const callerId = socket.user.id;
 
+      // Ensure Caller isn't on DND
+      const [callerRows] = await pool.query(`SELECT dnd_enabled, dnd_until FROM users WHERE id = $1`, [callerId]);
+      if (callerRows.length > 0 && callerRows[0].dnd_enabled) {
+        // If dnd_until is expired, we should technically disable it, but for now we just block if it's active.
+        // The frontend will intercept this specific message.
+        return socket.emit('call_blocked_dnd', { message: 'Do Not Disturb is on' });
+      }
+
       // Check if user is busy or on DND
       const [targetRows] = await pool.query(`SELECT dnd_enabled FROM users WHERE id = $1`, [targetId]);
       if (targetRows.length > 0 && targetRows[0].dnd_enabled) {

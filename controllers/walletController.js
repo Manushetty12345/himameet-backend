@@ -328,7 +328,13 @@ exports.verifyRechargePayment = async (req, res) => {
         [order.user_id, order.coins]
       );
       await pool.query('COMMIT');
-    } catch (txErr) {
+        
+        // Notify user via WebSocket
+        const io = req.app.get('io');
+        if (io) {
+          io.to(`user_${userId}`).emit('wallet_update', { coins_added: order.coins });
+        }
+      } catch (txErr) {
       await pool.query('ROLLBACK').catch(() => { });
       throw txErr;
     }
