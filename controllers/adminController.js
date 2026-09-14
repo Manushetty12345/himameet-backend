@@ -136,16 +136,16 @@ exports.getOverview = async (req, res) => {
     const [[pendingReports]] = await pool.query(`SELECT COUNT(*) as count FROM user_reports WHERE status = 'pending'`);
 
     const [[todayRevenue]] = await pool.query(`
-      SELECT COALESCE(SUM(coins), 0) as total FROM coin_transactions 
+      SELECT COALESCE(SUM(coins), 0) as total_coins, COALESCE(SUM(amount_paid), 0) as total_inr FROM coin_transactions 
       WHERE type = 'purchase' AND DATE(created_at) = CURRENT_DATE
     `);
     const [[monthRevenue]] = await pool.query(`
-      SELECT COALESCE(SUM(coins), 0) as total FROM coin_transactions 
+      SELECT COALESCE(SUM(coins), 0) as total_coins, COALESCE(SUM(amount_paid), 0) as total_inr FROM coin_transactions 
       WHERE type = 'purchase' AND EXTRACT(MONTH FROM created_at) = EXTRACT(MONTH FROM CURRENT_DATE)
         AND EXTRACT(YEAR FROM created_at) = EXTRACT(YEAR FROM CURRENT_DATE)
     `);
     const [[totalRevenue]] = await pool.query(`
-      SELECT COALESCE(SUM(coins), 0) as total FROM coin_transactions WHERE type = 'purchase'
+      SELECT COALESCE(SUM(coins), 0) as total_coins, COALESCE(SUM(amount_paid), 0) as total_inr FROM coin_transactions WHERE type = 'purchase'
     `);
     const [[pendingWithdrawAmount]] = await pool.query(`
       SELECT COALESCE(SUM(amount_inr), 0) as total FROM withdrawal_requests WHERE status = 'pending'
@@ -165,12 +165,12 @@ exports.getOverview = async (req, res) => {
         pending_withdrawals: parseInt(pendingWithdrawals.count),
         open_tickets: parseInt(openTickets.count),
         pending_reports: parseInt(pendingReports.count),
-        today_revenue_coins: parseInt(todayRevenue.total),
-        today_revenue_inr: parseFloat((todayRevenue.total / 10).toFixed(2)),
-        month_revenue_coins: parseInt(monthRevenue.total),
-        month_revenue_inr: parseFloat((monthRevenue.total / 10).toFixed(2)),
-        total_revenue_coins: parseInt(totalRevenue.total),
-        total_revenue_inr: parseFloat((totalRevenue.total / 10).toFixed(2)),
+        today_revenue_coins: parseInt(todayRevenue.total_coins),
+        today_revenue_inr: parseFloat(todayRevenue.total_inr),
+        month_revenue_coins: parseInt(monthRevenue.total_coins),
+        month_revenue_inr: parseFloat(monthRevenue.total_inr),
+        total_revenue_coins: parseInt(totalRevenue.total_coins),
+        total_revenue_inr: parseFloat(totalRevenue.total_inr),
         pending_withdrawal_amount: parseFloat(pendingWithdrawAmount.total),
         active_calls: parseInt(activeCalls.count),
       }
@@ -451,7 +451,7 @@ exports.closeTicket = async (req, res) => {
 exports.getRevenueChart = async (req, res) => {
   try {
     const [rows] = await pool.query(`
-      SELECT DATE(created_at) as date, COALESCE(SUM(coins), 0) as coins
+      SELECT DATE(created_at) as date, COALESCE(SUM(coins), 0) as coins, COALESCE(SUM(amount_paid), 0) as inr
       FROM coin_transactions
       WHERE type = 'purchase' AND created_at >= NOW() - INTERVAL '30 days'
       GROUP BY DATE(created_at)
