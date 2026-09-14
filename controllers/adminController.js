@@ -254,8 +254,11 @@ exports.updateUserStatus = async (req, res) => {
           `INSERT INTO user_warnings (user_id, reason, issued_by_admin_id) VALUES ($1, $2, $3)`,
           [userId, warningReason, req.admin ? req.admin.id : null]
         );
+      } else if (account_status === 'good_standing') {
+        // Clear all warnings if user is restored
+        await pool.query(`DELETE FROM user_warnings WHERE user_id = $1`, [userId]);
       }
-  
+
       await pool.query(`UPDATE users SET account_status = $1 WHERE id = $2`, [account_status, userId]);
     res.json({ status: 'success', message: `User status updated to ${account_status}` });
   } catch (err) {
