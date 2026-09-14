@@ -238,16 +238,25 @@ exports.getUsers = async (req, res) => {
 };
 
 exports.updateUserStatus = async (req, res) => {
-  try {
-    const { userId } = req.params;
-    const { account_status } = req.body;
+    try {
+      const { userId } = req.params;
+      const { account_status, reason } = req.body;
+  
+      const valid = ['good_standing', 'warned', 'suspended', 'banned'];
+      if (!valid.includes(account_status)) {
+        return res.status(400).json({ status: 'error', message: 'Invalid status' });
+      }
 
-    const valid = ['good_standing', 'warned', 'suspended', 'banned'];
-    if (!valid.includes(account_status)) {
-      return res.status(400).json({ status: 'error', message: 'Invalid status' });
-    }
-
-    await pool.query(`UPDATE users SET account_status = $1 WHERE id = $2`, [account_status, userId]);
+      // If issuing a warning, insert it into user_warnings table
+      if (account_status === 'warned') {
+        const warningReason = reason || 'Violated Community Guidelines';
+        await pool.query(
+          `INSERT INTO user_warnings (user_id, reason, issued_by_admin_id) VALUES ($1, $2, $3)`,
+          [userId, warningReason, req.admin ? req.admin.id : null]
+        );
+      }
+  
+      await pool.query(`UPDATE users SET account_status = $1 WHERE id = $2`, [account_status, userId]);
     res.json({ status: 'success', message: `User status updated to ${account_status}` });
   } catch (err) {
     console.error('[updateUserStatus] Error:', err);
