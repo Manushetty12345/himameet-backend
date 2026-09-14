@@ -417,13 +417,14 @@ exports.resolveReport = async (req, res) => {
 // ─── Support Tickets ───────────────────────────────────────────────────────────
 exports.getTickets = async (req, res) => {
   try {
-    const [rows] = await pool.query(`
-      SELECT st.*, u.full_name, u.phone_number
-      FROM support_tickets st
+    const statusFilter = req.query.status || 'active';
+      const [rows] = await pool.query(`
+        SELECT st.*, u.full_name, u.phone_number
+        FROM support_tickets st
       JOIN users u ON st.user_id = u.id
-      WHERE st.status = 'active'
+      WHERE st.status = $1
       ORDER BY st.created_at DESC
-    `);
+      `, [statusFilter]);
     res.json({ status: 'success', data: rows });
   } catch (err) {
     console.error('[getTickets] Error:', err);
