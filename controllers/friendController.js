@@ -1,4 +1,14 @@
+
 const pool = require('../db');
+
+function notifyFriendUpdate(req, user1, user2) {
+  const io = req.app.get('io');
+  if (io) {
+    if (user1) io.to(`user_${user1}`).emit('friend_update');
+    if (user2) io.to(`user_${user2}`).emit('friend_update');
+  }
+}
+
 
 /**
  * 7.1 Send Friend Request
