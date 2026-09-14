@@ -43,6 +43,7 @@ router.put('/reports/:reportId/resolve', adminController.resolveReport);
 
 // Support
 router.get('/tickets', adminController.getTickets);
+router.get('/tickets/:ticketId/messages', adminController.getTicketMessages);
 router.put('/tickets/:ticketId/reply', adminController.replyTicket);
 router.put('/tickets/:ticketId/close', adminController.closeTicket);
 
