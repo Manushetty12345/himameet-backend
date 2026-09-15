@@ -55,6 +55,12 @@ module.exports = (io) => {
       }
 
       try {
+        // Check if caller has enough coins
+        const [walletRows] = await pool.query(`SELECT coin_balance FROM wallets WHERE user_id = $1`, [callerId]);
+        if (walletRows.length === 0 || parseFloat(walletRows[0].coin_balance) < rate) {
+          return socket.emit('call_blocked_insufficient_coins', { message: 'Insufficient coins to start call.' });
+        }
+
         const [result] = await pool.query(
           `INSERT INTO call_logs (caller_id, receiver_id, call_type, rate_per_min, status) VALUES ($1, $2, $3, $4, 'initiated') RETURNING id`,
           [callerId, targetId, type, rate]
