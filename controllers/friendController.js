@@ -92,7 +92,8 @@ exports.getFriends = async (req, res) => {
       WHERE f.user_one_id = $2 OR f.user_two_id = $3
     `, [userId, userId, userId]);
 
-    const formattedData = rows.map(row => ({
+    console.log("DEBUG getFriends rows:", rows.map(r => ({ id: r.user_id, lastMsg: r.lastMessage, lMsg: r.last_message, lsm: r.lastmessage })));
+      const formattedData = rows.map(row => ({
       ...row,
       avatar_url: row.avatar_url || 'https://hima-bucket.s3.amazonaws.com/default-avatar.png',
       isOnline: row.is_online,
@@ -148,7 +149,8 @@ exports.getFavourites = async (req, res) => {
         LEFT JOIN pinned_chats pc ON pc.user_id = $1 AND pc.friend_id = u.id
       WHERE ff.user_id = $1
     `, [userId]);
-    const formattedData = rows.map(row => ({
+    console.log("DEBUG getFriends rows:", rows.map(r => ({ id: r.user_id, lastMsg: r.lastMessage, lMsg: r.last_message, lsm: r.lastmessage })));
+      const formattedData = rows.map(row => ({
       ...row, 
       avatar_url: row.avatar_url || 'https://hima-bucket.s3.amazonaws.com/default-avatar.png',
       isOnline: row.is_online,
@@ -211,7 +213,8 @@ exports.getRequestsSent = async (req, res) => {
       LEFT JOIN avatars a ON u.avatar_id = a.id
       WHERE fr.sender_id = $1 AND (fr.status = 'pending' OR fr.status IS NULL)
     `, [userId]);
-    const formattedData = rows.map(row => ({
+    console.log("DEBUG getFriends rows:", rows.map(r => ({ id: r.user_id, lastMsg: r.lastMessage, lMsg: r.last_message, lsm: r.lastmessage })));
+      const formattedData = rows.map(row => ({
       ...row, avatar_url: row.avatar_url || 'https://hima-bucket.s3.amazonaws.com/default-avatar.png'
     }));
     res.status(200).json({ status: 'success', data: formattedData });
@@ -442,3 +445,28 @@ exports.togglePin = async (req, res) => {
   }
 };
 
+
+exports.debugFriends = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const [rows] = await pool.query(`
+      SELECT 
+        u.id AS user_id, 
+        c.id AS conversation_id,
+        c.last_message_id,
+        m.id AS msg_table_id,
+        m.message_text AS "lastMessage",
+        m.status AS "lastMessageStatus"
+      FROM friendships f
+      JOIN users u ON (u.id = f.user_one_id OR u.id = f.user_two_id) AND u.id != $1
+      LEFT JOIN conversations c ON (c.user_one_id = u.id AND c.user_two_id = $1) OR (c.user_one_id = $1 AND c.user_two_id = u.id)
+      LEFT JOIN messages m ON m.id = c.last_message_id
+      WHERE f.user_one_id = $2 OR f.user_two_id = $3
+      LIMIT 10
+    `, [userId, userId, userId]);
+    
+    res.json({ status: 'success', raw_db_rows: rows });
+  } catch (err) {
+    res.json({ error: err.message });
+  }
+};

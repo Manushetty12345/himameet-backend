@@ -322,12 +322,16 @@ app.get('/accept-last-call', async (req, res) => {
 // Open in browser: https://himameet-backend.onrender.com/clear-active-calls
 // ============================================================
 const callSocketModule = require('./sockets/callSocket');
-app.get('/clear-active-calls', (req, res) => {
-  if (callSocketModule.activeUsersInCall) {
-    callSocketModule.activeUsersInCall.clear();
-    res.json({ success: true, message: 'All active and stuck calls have been cleared from memory!' });
-  } else {
-    res.json({ success: false, message: 'Could not access activeUsersInCall.' });
+app.get('/clear-active-calls', async (req, res) => {
+  try {
+    if (callSocketModule.activeUsersInCall) {
+      callSocketModule.activeUsersInCall.clear();
+    }
+    // Also clear stuck calls in DB
+    await pool.query(`UPDATE call_logs SET status = 'completed', end_reason = 'manual_clear' WHERE status IN ('initiated', 'in_progress', 'ongoing')`);
+    res.json({ success: true, message: 'All active and stuck calls have been cleared from memory and database!' });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
   }
 });
 

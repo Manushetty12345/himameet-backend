@@ -151,10 +151,13 @@ module.exports = (io) => {
         [agoraToken, channelName, callId]
       );
 
+      const [rateRows] = await pool.query('SELECT rate_per_min FROM call_logs WHERE id = $1', [callId]);
+      const rate = rateRows.length > 0 ? parseFloat(rateRows[0].rate_per_min) : 0;
+
       activeUsersInCall.add(String(callerId));
       activeUsersInCall.add(String(receiverId));
 
-      io.to(`user_${callerId}`).emit('call_accepted', { callId, agoraToken });
+      io.to(`user_${callerId}`).emit('call_accepted', { callId, agoraToken, rate });
     });
 
     socket.on('decline_call', async (data) => {
@@ -249,6 +252,38 @@ module.exports = (io) => {
         io.to(`call_${callId}`).emit('call_ended', { message: 'The other user hung up.' });
       } catch (err) {
         console.error('Error ending call:', err);
+      }
+    });
+
+    socket.on('disconnect', async () => {
+      if (socket.user && socket.user.id) {
+        const userIdStr = String(socket.user.id);
+        
+        // Remove from memory if they disconnect abruptly
+        activeUsersInCall.delete(userIdStr);
+        
+        try {
+          // Find any ongoing call they might be in
+          const [rows] = await pool.query(
+            `SELECT id, caller_id, receiver_id FROM call_logs WHERE (caller_id = $1 OR receiver_id = $1) AND status IN ('initiated', 'in_progress', 'ongoing')`,
+            [socket.user.id]
+          );
+          
+          for (let call of rows) {
+            stopCallBillingTimer(call.id);
+            activeUsersInCall.delete(String(call.caller_id));
+            activeUsersInCall.delete(String(call.receiver_id));
+            
+            await pool.query(
+              `UPDATE call_logs SET status = 'completed', end_reason = 'disconnected', ended_at = NOW() WHERE id = $1`,
+              [call.id]
+            );
+            
+            io.to(`call_${call.id}`).emit('call_ended', { message: 'The other user disconnected.' });
+          }
+        } catch (e) {
+          console.error('Disconnect cleanup error:', e);
+        }
       }
     });
 
