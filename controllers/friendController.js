@@ -251,6 +251,15 @@ exports.checkStatus = async (req, res) => {
     const userId = req.user.id;
     const targetUserId = req.params.target_user_id;
 
+    const [blockRows] = await pool.query(`
+      SELECT * FROM blocked_users 
+      WHERE (blocker_id = $1 AND blocked_id = $2) OR (blocker_id = $2 AND blocked_id = $1)
+    `, [userId, targetUserId]);
+
+    if (blockRows.length > 0) {
+      return res.status(200).json({ status: 'success', data: { friend_status: 'blocked' } });
+    }
+
     const [friendRows] = await pool.query(`
       SELECT user_one_id FROM friendships 
       WHERE (user_one_id = $1 AND user_two_id = $2) OR (user_one_id = $2 AND user_two_id = $1)
@@ -267,15 +276,6 @@ exports.checkStatus = async (req, res) => {
 
     if (requestRows.length > 0) {
       return res.status(200).json({ status: 'success', data: { friend_status: 'pending' } });
-    }
-
-    const [blockRows] = await pool.query(`
-      SELECT * FROM blocked_users 
-      WHERE (blocker_id = $1 AND blocked_id = $2) OR (blocker_id = $2 AND blocked_id = $1)
-    `, [userId, targetUserId]);
-
-    if (blockRows.length > 0) {
-      return res.status(200).json({ status: 'success', data: { friend_status: 'blocked' } });
     }
 
     return res.status(200).json({ status: 'success', data: { friend_status: 'none' } });
