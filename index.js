@@ -164,6 +164,16 @@ app.get('/seed-packages', async (req, res) => {
   }
 });
 
+// TEMPORARY: View recent transactions to debug the 5 coin deduction
+app.get('/debug/transactions', async (req, res) => {
+  try {
+    const [rows] = await pool.query(`SELECT * FROM coin_transactions ORDER BY created_at DESC LIMIT 10`);
+    res.json({ status: 'success', message: 'Last 10 transactions', data: rows });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 
 app.get('/reset-wallet', async (req, res) => {
   try {
