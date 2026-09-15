@@ -295,7 +295,8 @@ function startCallBillingTimer(callId, io) {
 
   // Run every 60 seconds (60000 ms)
   let tick = 0;
-  activeCallTimers[callId] = setInterval(async () => {
+
+  const billTick = async () => {
     try {
       tick++;
       // Fetch call details
@@ -357,7 +358,13 @@ function startCallBillingTimer(callId, io) {
     } catch (err) {
       console.error('Call billing error:', err);
     }
-  }, 60000); // 60 seconds
+  };
+
+  // Charge immediately for the first minute
+  billTick();
+
+  // Then charge every 60 seconds
+  activeCallTimers[callId] = setInterval(billTick, 60000); // 60 seconds
 }
 
 function stopCallBillingTimer(callId) {
