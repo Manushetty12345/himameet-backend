@@ -59,6 +59,10 @@ exports.getFriends = async (req, res) => {
   try {
     const userId = req.user.id;
 
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20;
+    const offset = (page - 1) * limit;
+
     const [rows] = await pool.query(`
       SELECT 
         u.id AS user_id, 
@@ -90,7 +94,9 @@ exports.getFriends = async (req, res) => {
       LEFT JOIN messages m ON m.id = c.last_message_id
         LEFT JOIN pinned_chats pc ON pc.user_id = $1 AND pc.friend_id = u.id
       WHERE f.user_one_id = $2 OR f.user_two_id = $3
-    `, [userId, userId, userId]);
+      ORDER BY u.id DESC
+      LIMIT $4 OFFSET $5
+    `, [userId, userId, userId, limit, offset]);
 
     console.log("DEBUG getFriends rows:", rows.map(r => ({ id: r.user_id, lastMsg: r.lastMessage, lMsg: r.last_message, lsm: r.lastmessage })));
       const formattedData = rows.map(row => ({
@@ -113,7 +119,8 @@ exports.getFriends = async (req, res) => {
 
     res.status(200).json({
       status: 'success',
-      data: formattedData
+      data: formattedData,
+      meta: { page, limit }
     });
     console.log('FRIENDS LIST:', formattedData.map(f => ({ id: f.user_id, unread: f.unreadCount, cId: f.conversationId })));
   } catch (error) {
@@ -124,7 +131,10 @@ exports.getFriends = async (req, res) => {
 
 exports.getFavourites = async (req, res) => {
   try {
-    const userId = req.user.id;
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20;
+    const offset = (page - 1) * limit;
+
     const [rows] = await pool.query(`
       SELECT 
         u.id AS user_id, 
@@ -148,7 +158,9 @@ exports.getFavourites = async (req, res) => {
       LEFT JOIN messages m ON m.id = c.last_message_id
         LEFT JOIN pinned_chats pc ON pc.user_id = $1 AND pc.friend_id = u.id
       WHERE ff.user_id = $1
-    `, [userId]);
+      ORDER BY u.id DESC
+      LIMIT $2 OFFSET $3
+    `, [userId, limit, offset]);
     console.log("DEBUG getFriends rows:", rows.map(r => ({ id: r.user_id, lastMsg: r.lastMessage, lMsg: r.last_message, lsm: r.lastmessage })));
       const formattedData = rows.map(row => ({
       ...row, 
@@ -162,7 +174,7 @@ exports.getFavourites = async (req, res) => {
       lastMessageStatus: row.lastMessageStatus || row.lastmessagestatus || row.last_message_status,
       lastMessageSenderId: row.lastMessageSenderId
     }));
-    res.status(200).json({ status: 'success', data: formattedData });
+    res.status(200).json({ status: 'success', data: formattedData, meta: { page, limit } });
   } catch (error) {
     console.error('Error fetching favourites:', error);
     res.status(500).json({ status: 'error', message: 'Internal Server Error' });
@@ -172,31 +184,32 @@ exports.getFavourites = async (req, res) => {
 exports.getRequestsReceived = async (req, res) => {
   try {
     const userId = req.user.id;
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20;
+    const offset = (page - 1) * limit;
 
-    // Requests sent TO me that are still pending (I am the receiver)
-    const [pendingRows] = await pool.query(`
+    const [rows] = await pool.query(`
       SELECT u.id AS user_id, u.full_name AS name, a.avatar_url, 'received' AS status
       FROM friend_requests fr
       JOIN users u ON u.id = fr.sender_id
       LEFT JOIN avatars a ON u.avatar_id = a.id
       WHERE fr.receiver_id = $1 AND fr.status = 'pending'
-    `, [userId]);
-
-    // Requests I SENT that the receiver has accepted (waiting for my confirmation)
-    const [acceptedRows] = await pool.query(`
+      UNION ALL
       SELECT u.id AS user_id, u.full_name AS name, a.avatar_url, 'accepted_by_receiver' AS status
       FROM friend_requests fr
       JOIN users u ON u.id = fr.receiver_id
       LEFT JOIN avatars a ON u.avatar_id = a.id
       WHERE fr.sender_id = $1 AND fr.status = 'accepted_by_receiver'
-    `, [userId]);
+      ORDER BY user_id DESC
+      LIMIT $2 OFFSET $3
+    `, [userId, limit, offset]);
 
-    const combined = [...pendingRows, ...acceptedRows].map(row => ({
+    const combined = rows.map(row => ({
       ...row,
       avatar_url: row.avatar_url || 'https://hima-bucket.s3.amazonaws.com/default-avatar.png'
     }));
 
-    res.status(200).json({ status: 'success', data: combined });
+    res.status(200).json({ status: 'success', data: combined, meta: { page, limit } });
   } catch (error) {
     console.error('Error fetching received requests:', error);
     res.status(500).json({ status: 'error', message: 'Internal Server Error' });
@@ -206,18 +219,24 @@ exports.getRequestsReceived = async (req, res) => {
 exports.getRequestsSent = async (req, res) => {
   try {
     const userId = req.user.id;
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20;
+    const offset = (page - 1) * limit;
+
     const [rows] = await pool.query(`
       SELECT u.id AS user_id, u.full_name AS name, a.avatar_url, 'sent' AS status
       FROM friend_requests fr
       JOIN users u ON u.id = fr.receiver_id
       LEFT JOIN avatars a ON u.avatar_id = a.id
       WHERE fr.sender_id = $1 AND (fr.status = 'pending' OR fr.status IS NULL)
-    `, [userId]);
+      ORDER BY user_id DESC
+      LIMIT $2 OFFSET $3
+    `, [userId, limit, offset]);
     console.log("DEBUG getFriends rows:", rows.map(r => ({ id: r.user_id, lastMsg: r.lastMessage, lMsg: r.last_message, lsm: r.lastmessage })));
       const formattedData = rows.map(row => ({
       ...row, avatar_url: row.avatar_url || 'https://hima-bucket.s3.amazonaws.com/default-avatar.png'
     }));
-    res.status(200).json({ status: 'success', data: formattedData });
+    res.status(200).json({ status: 'success', data: formattedData, meta: { page, limit } });
   } catch (error) {
     console.error('Error fetching sent requests:', error);
     res.status(500).json({ status: 'error', message: 'Internal Server Error' });
