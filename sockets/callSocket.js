@@ -9,6 +9,7 @@ const AGORA_APP_CERTIFICATE = process.env.AGORA_APP_CERTIFICATE;
 const activeCallTimers = {};
 // Track busy users
 const activeUsersInCall = new Set();
+const activeCallGrace = new Map(); // Tracks how many ticks a call has been in grace period
 
 module.exports = (io) => {
   io.on('connection', (socket) => {
@@ -293,12 +294,25 @@ function startCallBillingTimer(callId, io) {
       );
 
       if (updateRes.length === 0) {
-        // Insufficient Coins! Force end call.
+        // Give 2 minutes grace period for them to complete payment
+        let graceTicks = activeCallGrace.get(callId) || 0;
+        if (graceTicks < 2) {
+          activeCallGrace.set(callId, graceTicks + 1);
+          console.log(`Call ${callId} entered grace period tick ${graceTicks + 1}`);
+          // Emit a warning to frontend if they are still connected
+          io.to(`call_${callId}`).emit('grace_period_warning', { message: 'Please complete your payment to continue.' });
+          return;
+        }
+
+        // Insufficient Coins after grace period! Force end call.
         stopCallBillingTimer(callId);
         await pool.query(`UPDATE call_logs SET status = 'completed', end_reason = 'insufficient_coins', ended_at = NOW() WHERE id = $1`, [callId]);
         io.to(`call_${callId}`).emit('insufficient_coins', { message: 'Caller ran out of coins. Call ended.' });
         io.in(`call_${callId}`).socketsLeave(`call_${callId}`);
         return;
+      } else {
+        // They successfully paid, reset grace period
+        activeCallGrace.delete(callId);
       }
 
       // Add to receiver
@@ -332,6 +346,7 @@ function stopCallBillingTimer(callId) {
     delete activeCallTimers[callId];
     console.log(`Stopped billing timer for call ${callId}`);
   }
+  activeCallGrace.delete(callId);
 }
 
 module.exports.activeUsersInCall = activeUsersInCall;
