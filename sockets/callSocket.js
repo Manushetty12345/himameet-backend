@@ -19,6 +19,12 @@ module.exports = (io) => {
         activeCallRecharging.add(callId);
       }
     });
+    
+    socket.on('cancel_recharging_call', ({ callId }) => {
+      if (callId) {
+        activeCallRecharging.delete(callId);
+      }
+    });
 
     // Join a user room for direct signaling
     if (socket.user && socket.user.id) {
