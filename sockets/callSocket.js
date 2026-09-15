@@ -259,31 +259,10 @@ module.exports = (io) => {
       if (socket.user && socket.user.id) {
         const userIdStr = String(socket.user.id);
         
-        // Remove from memory if they disconnect abruptly
+        // Only remove from memory so they don't get stuck on "another call"
+        // Do NOT end the call here, because going to a payment app (PhonePe)
+        // drops the socket temporarily. The call should stay alive!
         activeUsersInCall.delete(userIdStr);
-        
-        try {
-          // Find any ongoing call they might be in
-          const [rows] = await pool.query(
-            `SELECT id, caller_id, receiver_id FROM call_logs WHERE (caller_id = $1 OR receiver_id = $1) AND status IN ('initiated', 'in_progress', 'ongoing')`,
-            [socket.user.id]
-          );
-          
-          for (let call of rows) {
-            stopCallBillingTimer(call.id);
-            activeUsersInCall.delete(String(call.caller_id));
-            activeUsersInCall.delete(String(call.receiver_id));
-            
-            await pool.query(
-              `UPDATE call_logs SET status = 'completed', end_reason = 'disconnected', ended_at = NOW() WHERE id = $1`,
-              [call.id]
-            );
-            
-            io.to(`call_${call.id}`).emit('call_ended', { message: 'The other user disconnected.' });
-          }
-        } catch (e) {
-          console.error('Disconnect cleanup error:', e);
-        }
       }
     });
 
