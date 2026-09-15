@@ -38,7 +38,7 @@ module.exports = (io) => {
       }
 
       if (activeUsersInCall.has(String(targetId)) || activeUsersInCall.has(targetId)) {
-        return socket.emit('call_busy', { message: 'The user is currently on another call. Please try again later.' });
+        return socket.emit('call_busy', { message: 'The user is currently on another call. Please try again.' });
       }
 
       try {
