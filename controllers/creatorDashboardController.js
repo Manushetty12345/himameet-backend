@@ -152,8 +152,19 @@ exports.toggleStatus = async (req, res) => {
 
     console.log(`[toggleStatus] SUCCESS: ${call_type} => ${value}`);
 
-    // If changing to TRUE (available), fire push notifications to subscribers
-    if (value) {
+    
+      // Fire realtime socket event to all clients so they instantly see the toggle!
+      const io = req.app.get('io');
+      if (io) {
+         io.emit('availability_changed', {
+           userId: creatorId,
+           call_type: call_type,
+           is_online: is_online
+         });
+      }
+      
+      if (value) {
+
       try {
         const [subRows] = await pool.query('SELECT subscriber_id FROM online_notify_subscriptions WHERE target_user_id = $1', [creatorId]);
         if (subRows && subRows.length > 0) {
