@@ -93,6 +93,9 @@ exports.endCall = async (req, res) => {
 exports.getHistory = async (req, res) => {
   try {
     const userId = req.user.id;
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20;
+    const offset = (page - 1) * limit;
 
     const [rows] = await pool.query(`
         SELECT 
@@ -116,8 +119,8 @@ exports.getHistory = async (req, res) => {
         LEFT JOIN creator_settings cs ON cs.user_id = u.id
         WHERE c.caller_id = $2 OR c.receiver_id = $3
         ORDER BY c.created_at DESC
-        LIMIT 50
-      `, [userId, userId, userId]);
+        LIMIT $4 OFFSET $5
+      `, [userId, userId, userId, limit, offset]);
 
     const formatted = rows.map(row => ({
       call_id: row.call_id,
@@ -140,7 +143,8 @@ exports.getHistory = async (req, res) => {
 
     res.status(200).json({
       status: 'success',
-      data: formatted
+      data: formatted,
+      meta: { page, limit, hasMore: formatted.length === limit }
     });
   } catch (error) {
     console.error('Error fetching call history:', error);
