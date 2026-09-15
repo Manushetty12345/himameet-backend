@@ -100,9 +100,9 @@ exports.getFriends = async (req, res) => {
       isVideoOnline: row.is_video_online,
       voice: { rate_per_min: row.voice_rate },
       video: { rate_per_min: row.video_rate },
-      lastMessage: row.lastMessage,
-      lastMessageStatus: row.lastMessageStatus,
-      lastMessageSenderId: row.lastMessageSenderId,
+      lastMessage: row.lastMessage || row.lastmessage || row.last_message,
+      lastMessageStatus: row.lastMessageStatus || row.lastmessagestatus || row.last_message_status,
+      lastMessageSenderId: row.lastMessageSenderId || row.lastmessagesenderid || row.last_message_sender_id,
       lastMessageTime: row.lastMessageTime,
       lastSeen: row.last_seen_at,
       conversationId: row.conversation_id,
@@ -156,8 +156,8 @@ exports.getFavourites = async (req, res) => {
       isVideoOnline: row.is_video_online,
       voice: { rate_per_min: row.voice_rate },
       video: { rate_per_min: row.video_rate },
-      lastMessage: row.lastMessage,
-      lastMessageStatus: row.lastMessageStatus,
+      lastMessage: row.lastMessage || row.lastmessage || row.last_message,
+      lastMessageStatus: row.lastMessageStatus || row.lastmessagestatus || row.last_message_status,
       lastMessageSenderId: row.lastMessageSenderId
     }));
     res.status(200).json({ status: 'success', data: formattedData });
