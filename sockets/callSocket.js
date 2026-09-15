@@ -299,6 +299,16 @@ function startCallBillingTimer(callId, io) {
   const billTick = async () => {
     try {
       tick++;
+
+      // Prevent ghost calls: if room is completely empty, stop billing!
+      const room = io.sockets.adapter.rooms.get(`call_${callId}`);
+      if (!room || room.size === 0) {
+        console.log(`[billTick] Room call_${callId} is empty. Abandoning ghost call.`);
+        stopCallBillingTimer(callId);
+        await pool.query(`UPDATE call_logs SET status = 'completed', end_reason = 'abandoned', ended_at = NOW() WHERE id = $1 AND status != 'completed'`, [callId]);
+        return;
+      }
+
       // Fetch call details
       const [callRows] = await pool.query(`SELECT caller_id, receiver_id, rate_per_min FROM call_logs WHERE id = $1`, [callId]);
       if (callRows.length === 0) return stopCallBillingTimer(callId);
