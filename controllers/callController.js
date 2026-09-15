@@ -106,6 +106,8 @@ exports.getHistory = async (req, res) => {
           c.duration_seconds,
           c.coins_charged,
           c.created_at AS timestamp,
+          cs.is_voice_online,
+          cs.is_video_online,
           cs.voice_rate_per_min,
           cs.video_rate_per_min
         FROM call_logs c
@@ -131,7 +133,9 @@ exports.getHistory = async (req, res) => {
         status: row.status,
         duration_seconds: row.duration_seconds,
         coins_charged: row.coins_charged,
-        timestamp: row.timestamp
+        timestamp: row.timestamp,
+        is_voice_online: Boolean(row.is_voice_online),
+        is_video_online: Boolean(row.is_video_online)
     }));
 
     res.status(200).json({
