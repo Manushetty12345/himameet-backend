@@ -482,7 +482,7 @@ pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS fcm_token TEXT`)
 app.get('/api/delete-temp-user/:phone', async (req, res) => {
   const phone = req.params.phone;
   try {
-    const { rows } = await pool.query('SELECT id FROM users WHERE phone_number = $1', [phone]);
+    const [rows] = await pool.query('SELECT id FROM users WHERE phone_number = $1', [phone]);
     if (rows.length === 0) {
       return res.status(404).json({ error: 'User not found' });
     }
