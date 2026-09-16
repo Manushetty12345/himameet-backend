@@ -146,37 +146,183 @@ module.exports = (io) => {
       }
     });
 
+
+    // --- BROADCAST RANDOM CALL ---
+    socket.on('initiate_random_broadcast', async (data) => {
+      const { type } = data;
+      const callerId = socket.user.id;
+
+      // Ensure Caller isn't on DND
+      const [callerRows] = await pool.query(`SELECT dnd_enabled FROM users WHERE id = $1`, [callerId]);
+      if (callerRows.length > 0 && callerRows[0].dnd_enabled) {
+        return socket.emit('call_blocked_dnd', { message: 'Do Not Disturb is on' });
+      }
+
+      // Check caller wallet for default rate (20/40) to ensure they have minimum balance
+      const defaultRate = type === 'audio' ? 20 : 40;
+      const [walletRows] = await pool.query(`SELECT coin_balance FROM wallets WHERE user_id = $1`, [callerId]);
+      if (walletRows.length === 0 || parseFloat(walletRows[0].coin_balance) < defaultRate) {
+        return socket.emit('call_blocked_insufficient_coins', { message: 'Insufficient coins to start call.' });
+      }
+
+      try {
+        // Query up to 20 online creators available for calls
+        const [creators] = await pool.query(`
+          SELECT 
+            u.id, u.full_name, a.avatar_url,
+            COALESCE(cs.call_rate, 20) AS call_rate,
+            COALESCE(cs.video_rate, 40) AS video_rate
+          FROM users u
+          LEFT JOIN creator_settings cs ON u.id = cs.user_id
+          LEFT JOIN avatars a ON u.avatar_id = a.id
+          WHERE u.user_role = 'creator' 
+            AND u.is_online = true 
+            AND u.dnd_enabled = false
+            AND (cs.is_available = true OR cs.is_available IS NULL)
+          ORDER BY RANDOM()
+          LIMIT 20
+        `);
+
+        if (creators.length === 0) {
+          return socket.emit('call_declined', { message: 'No creators available right now.' });
+        }
+
+        // Create the call log with receiver_id = NULL if possible, but if constrained, we can insert NULL 
+        // Wait, if receiver_id is NOT NULL, this will fail. Let's use the first creator as a dummy receiver_id, 
+        // and update it when someone accepts.
+        const dummyReceiverId = creators[0].id;
+
+        const [result] = await pool.query(
+          `INSERT INTO call_logs (caller_id, receiver_id, call_type, rate_per_min, status) VALUES ($1, $2, $3, $4, 'initiated') RETURNING id`,
+          [callerId, dummyReceiverId, type, defaultRate]
+        );
+        const callId = result[0].id;
+        
+        // Generate Token
+        const channelName = `call_${callId}`;
+        const uid = 0;
+        const role = RtcRole.PUBLISHER;
+        const expirationTimeInSeconds = 3600;
+        const currentTimestamp = Math.floor(Date.now() / 1000);
+        const privilegeExpiredTs = currentTimestamp + expirationTimeInSeconds;
+
+        let agoraToken = '';
+        if (AGORA_APP_ID && AGORA_APP_CERTIFICATE) {
+          agoraToken = RtcTokenBuilder.buildTokenWithUid(AGORA_APP_ID, AGORA_APP_CERTIFICATE, channelName, uid, role, privilegeExpiredTs);
+        }
+
+        // Fetch Caller info for UI
+        const [callerProfile] = await pool.query(`
+          SELECT u.full_name, a.avatar_url 
+          FROM users u 
+          LEFT JOIN avatars a ON u.avatar_id = a.id 
+          WHERE u.id = $1
+        `, [callerId]);
+
+        const callerInfo = {
+          id: callerId,
+          name: callerProfile[0]?.full_name || 'User',
+          avatarUri: callerProfile[0]?.avatar_url || 'https://i.pravatar.cc/300'
+        };
+
+        // Broadcast to all queried creators
+        creators.forEach(creator => {
+          // Skip if they are in activeUsersInCall
+          if (activeUsersInCall.has(String(creator.id))) return;
+          
+          io.to(`user_${creator.id}`).emit('incoming_call', {
+            callId,
+            callerId: callerInfo.id,
+              name: callerInfo.name,
+              avatar_url: callerInfo.avatarUri,
+              call_type: type,
+              type,
+              rate: type === 'audio' ? creator.call_rate : creator.video_rate,
+            agoraToken,
+            is_broadcast: true // Mark as broadcast so frontend knows
+          });
+        });
+
+        // We DO NOT send call_accepted here. The caller waits.
+        // We will send a timeout event if no one answers within 30 seconds.
+      } catch (err) {
+        console.error('Error initiating random broadcast:', err);
+      }
+    });
+
     socket.on('accept_call', async (data) => {
       const { callId, callerId } = data;
       const receiverId = socket.user.id;
 
-      const channelName = `call_${callId}`;
-      const uid = 0;
-      const role = RtcRole.PUBLISHER;
-      const expirationTimeInSeconds = 3600;
-      const currentTimestamp = Math.floor(Date.now() / 1000);
-      const privilegeExpiredTs = currentTimestamp + expirationTimeInSeconds;
+      try {
+        // 1. Check if call is already accepted by someone else
+        const [callRows] = await pool.query(`SELECT status, call_type, rate_per_min FROM call_logs WHERE id = $1`, [callId]);
+        if (callRows.length === 0) return;
+        
+        const callData = callRows[0];
+        if (callData.status !== 'initiated') {
+          return socket.emit('call_declined', { message: 'This call has already been answered by someone else.' });
+        }
 
-      let agoraToken = '';
-      if (AGORA_APP_ID && AGORA_APP_CERTIFICATE) {
-        agoraToken = RtcTokenBuilder.buildTokenWithUid(AGORA_APP_ID, AGORA_APP_CERTIFICATE, channelName, uid, role, privilegeExpiredTs);
-        console.log(`[Agora Token Generated for ${channelName} in accept_call]:`, agoraToken);
-      } else {
-        console.error('[Agora Token Failed in accept_call]: AGORA_APP_ID or CERTIFICATE missing!');
+        // 2. Determine actual rate for this creator
+        let actualRate = parseFloat(callData.rate_per_min);
+        const [creatorSettings] = await pool.query(
+          `SELECT call_rate, video_rate FROM creator_settings WHERE user_id = $1`, 
+          [receiverId]
+        );
+        if (creatorSettings.length > 0) {
+          actualRate = callData.call_type === 'audio' 
+            ? parseFloat(creatorSettings[0].call_rate || 20) 
+            : parseFloat(creatorSettings[0].video_rate || 40);
+        }
+
+        // 3. Generate Agora Token
+        const channelName = `call_${callId}`;
+        const uid = 0;
+        const role = RtcRole.PUBLISHER;
+        const expirationTimeInSeconds = 3600;
+        const currentTimestamp = Math.floor(Date.now() / 1000);
+        const privilegeExpiredTs = currentTimestamp + expirationTimeInSeconds;
+
+        let agoraToken = '';
+        if (AGORA_APP_ID && AGORA_APP_CERTIFICATE) {
+          agoraToken = RtcTokenBuilder.buildTokenWithUid(AGORA_APP_ID, AGORA_APP_CERTIFICATE, channelName, uid, role, privilegeExpiredTs);
+          console.log(`[Agora Token Generated for ${channelName} in accept_call]:`, agoraToken);
+        } else {
+          console.error('[Agora Token Failed in accept_call]: AGORA_APP_ID or CERTIFICATE missing!');
+        }
+
+        // 4. Atomically claim the call for this receiver
+        const [updateResult] = await pool.query(
+          `UPDATE call_logs 
+           SET status = 'in_progress', 
+               started_at = NOW(), 
+               agora_token = $1, 
+               agora_channel_name = $2, 
+               receiver_id = $3, 
+               rate_per_min = $4 
+           WHERE id = $5 AND status = 'initiated' 
+           RETURNING id`,
+          [agoraToken, channelName, receiverId, actualRate, callId]
+        );
+
+        if (updateResult.length === 0) {
+          // Another thread/socket beat us to the UPDATE
+          return socket.emit('call_declined', { message: 'This call has already been answered.' });
+        }
+
+        activeUsersInCall.add(String(callerId));
+        activeUsersInCall.add(String(receiverId));
+
+        // 5. Notify the Caller
+        io.to(`user_${callerId}`).emit('call_accepted', { callId, agoraToken, rate: actualRate });
+
+        // 6. Broadcast cancellation to all OTHER creators to stop their ringing modal
+        socket.broadcast.emit('call_cancelled', { callId });
+        
+      } catch (err) {
+        console.error('Error in accept_call:', err);
       }
-
-      await pool.query(
-        `UPDATE call_logs SET status = 'in_progress', started_at = NOW(), agora_token = $1, agora_channel_name = $2 WHERE id = $3`,
-        [agoraToken, channelName, callId]
-      );
-
-      const [rateRows] = await pool.query('SELECT rate_per_min FROM call_logs WHERE id = $1', [callId]);
-      const rate = rateRows.length > 0 ? parseFloat(rateRows[0].rate_per_min) : 0;
-
-      activeUsersInCall.add(String(callerId));
-      activeUsersInCall.add(String(receiverId));
-
-      io.to(`user_${callerId}`).emit('call_accepted', { callId, agoraToken, rate });
     });
 
     socket.on('decline_call', async (data) => {
