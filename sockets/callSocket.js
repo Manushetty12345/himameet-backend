@@ -384,17 +384,29 @@ module.exports = (io) => {
     });
 
     socket.on('cancel_call', async (data) => {
-      const { targetId } = data;
+      const { targetId } = data || {};
       const callerId = socket.user.id;
       
       try {
-        // Find the active 'initiated' call from callerId to targetId
-        const [rows] = await pool.query(
-          `SELECT id FROM call_logs 
-           WHERE caller_id = $1 AND receiver_id = $2 AND status = 'initiated' 
-           ORDER BY created_at DESC LIMIT 1`,
-          [callerId, targetId]
-        );
+        let rows;
+        if (targetId) {
+          // Find the active 'initiated' call from callerId to targetId
+          [rows] = await pool.query(
+            `SELECT id FROM call_logs 
+             WHERE caller_id = $1 AND receiver_id = $2 AND status = 'initiated' 
+             ORDER BY created_at DESC LIMIT 1`,
+            [callerId, targetId]
+          );
+        } else {
+          // If no targetId is provided, find ANY initiated call by this caller
+          // (Used for cancelling random matchmaking broadcast)
+          [rows] = await pool.query(
+            `SELECT id FROM call_logs 
+             WHERE caller_id = $1 AND status = 'initiated' 
+             ORDER BY created_at DESC LIMIT 1`,
+            [callerId]
+          );
+        }
 
         if (rows.length > 0) {
           const callId = rows[0].id;
@@ -405,14 +417,19 @@ module.exports = (io) => {
             [callId]
           );
 
-          // Tell the receiver to stop ringing
-          io.to(`user_${targetId}`).emit('call_cancelled', { callId });
+          if (targetId) {
+            // Tell the receiver to stop ringing
+            io.to(`user_${targetId}`).emit('call_cancelled', { callId });
+            
+            // Cancel the push notification
+            const { sendCallCancelNotification } = require('../utils/fcmService');
+            sendCallCancelNotification(targetId, callId);
+          } else {
+            // For random matches, broadcast to everyone so all ringing creators stop ringing
+            io.emit('call_cancelled', { callId });
+          }
           
-          // Cancel the push notification
-          const { sendCallCancelNotification } = require('../utils/fcmService');
-          sendCallCancelNotification(targetId, callId);
-          
-          console.log(`[Call] Caller ${callerId} cancelled call ${callId} to ${targetId}`);
+          console.log(`[Call] Caller ${callerId} cancelled call ${callId} to ${targetId || 'broadcast'}`);
         }
       } catch (err) {
         console.error('Error cancelling call:', err);
