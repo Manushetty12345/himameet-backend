@@ -315,7 +315,25 @@ module.exports = (io) => {
         activeUsersInCall.add(String(receiverId));
 
         // 5. Notify the Caller
-        io.to(`user_${callerId}`).emit('call_accepted', { callId, agoraToken, rate: actualRate });
+        // Fetch the winning receiver's info so the caller UI can update from the "dummy" random profile to the real person
+        const [receiverProfile] = await pool.query(
+          `SELECT u.full_name, a.avatar_url 
+          FROM users u 
+          LEFT JOIN avatars a ON u.avatar_id = a.id 
+          WHERE u.id = $1`, 
+          [receiverId]
+        );
+        const receiverName = receiverProfile.length > 0 ? receiverProfile[0].full_name : 'Creator';
+        const receiverAvatar = receiverProfile.length > 0 ? receiverProfile[0].avatar_url : 'https://i.pravatar.cc/300';
+
+        io.to(`user_${callerId}`).emit('call_accepted', { 
+          callId, 
+          agoraToken, 
+          rate: actualRate,
+          receiverId: receiverId,
+          receiverName: receiverName,
+          receiverAvatar: receiverAvatar
+        });
 
         // 6. Broadcast cancellation to all OTHER creators to stop their ringing modal
         socket.broadcast.emit('call_cancelled', { callId });
