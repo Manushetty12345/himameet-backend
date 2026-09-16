@@ -52,6 +52,28 @@ app.get('/api/delete-user/:phone', async (req, res) => {
   }
 });
 
+
+app.get('/api/config/call-rates', async (req, res) => {
+  try {
+    const [rows] = await pool.query("SELECT key, value FROM settings WHERE key IN ('default_voice_rate', 'default_video_rate')");
+    let audioCallCost = 20;
+    let videoCallCost = 40;
+    for (const row of rows) {
+      if (row.key === 'default_voice_rate') audioCallCost = parseInt(row.value, 10) || 20;
+      if (row.key === 'default_video_rate') videoCallCost = parseInt(row.value, 10) || 40;
+    }
+    res.json({
+      status: 'success',
+      data: {
+        audioCallCost,
+        videoCallCost
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', message: 'Hima Backend is running' });
 });
