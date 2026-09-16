@@ -256,7 +256,7 @@ app.post('/api/user/fcm-token', authProtect, async (req, res) => {
     const { fcm_token } = req.body;
     const userId = req.user.id;
     if (!fcm_token) return res.status(400).json({ error: 'fcm_token is required' });
-    await pool.query('UPDATE users SET fcm_token = $1 WHERE id = $1$2', [fcm_token, userId]);
+    await pool.query('UPDATE users SET fcm_token = $1 WHERE id = $2', [fcm_token, userId]);
     res.json({ success: true, message: 'FCM token saved' });
   } catch (err) {
     res.status(500).json({ error: err.message });
