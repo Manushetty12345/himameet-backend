@@ -1,4 +1,4 @@
-﻿const pool = require('../db');
+const pool = require('../db');
 const jwt = require('jsonwebtoken');
 const { v4: uuidv4 } = require('uuid');
 const bhashsms = require('../utils/bhashsms');
@@ -10,15 +10,18 @@ const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '30d';
  * 1.1 Send OTP
  */
 exports.sendOtp = async (req, res) => {
+  console.log(`\n[API] POST /send-otp called with body:`, req.body);
   try {
     let { country_code, mobile_number } = req.body;
 
     if (!mobile_number || !country_code) {
+      console.warn(`[API] /send-otp missing params - country_code: ${country_code}, mobile_number: ${mobile_number}`);
       return res.status(400).json({ status: 'error', message: 'Missing country code or mobile number' });
     }
 
     const cleanCountryCode = country_code.replace('+', '');
     const response = await bhashsms.sendOTP(mobile_number, cleanCountryCode);
+    console.log(`[API] bhashsms.sendOTP returned:`, response);
 
     if (response.type === 'success') {
       return res.status(200).json({
@@ -27,10 +30,11 @@ exports.sendOtp = async (req, res) => {
         data: { retry_timeout_seconds: 60 }
       });
     } else {
+      console.error(`[API] bhashsms error:`, response);
       return res.status(400).json({ status: 'error', message: response.message || 'Failed to send OTP' });
     }
   } catch (error) {
-    console.error(error);
+    console.error(`[API] sendOtp Internal Server Error:`, error);
     return res.status(500).json({ status: 'error', message: 'Internal Server Error' });
   }
 };
