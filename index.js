@@ -502,6 +502,10 @@ app.get('/api/delete-temp-user/:phone', async (req, res) => {
     await pool.query('DELETE FROM bank_accounts WHERE user_id = $1', [userId]);
     await pool.query('DELETE FROM withdrawal_requests WHERE user_id = $1', [userId]);
     await pool.query('DELETE FROM pinned_chats WHERE user_id = $1 OR friend_id = $1', [userId]);
+    
+    await pool.query('UPDATE conversations SET last_message_id = NULL WHERE user_one_id = $1 OR user_two_id = $1', [userId]);
+    await pool.query('DELETE FROM messages WHERE sender_id = $1 OR conversation_id IN (SELECT id FROM conversations WHERE user_one_id = $1 OR user_two_id = $1)', [userId]);
+    await pool.query('DELETE FROM conversations WHERE user_one_id = $1 OR user_two_id = $1', [userId]);
     await pool.query('DELETE FROM users WHERE id = $1', [userId]);
     
     res.json({ success: true, message: 'User and all related data deleted successfully' });
