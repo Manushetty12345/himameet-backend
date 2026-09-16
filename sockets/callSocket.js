@@ -156,6 +156,12 @@ module.exports = (io) => {
       const type = data?.type || 'audio';
 
       try {
+        // Ensure Caller isn't on DND
+        const [callerRows] = await pool.query(`SELECT dnd_enabled FROM users WHERE id = $1`, [callerId]);
+        if (callerRows.length > 0 && callerRows[0].dnd_enabled) {
+          return socket.emit('call_blocked_dnd', { message: 'Do Not Disturb is on' });
+        }
+
         // Fetch the dynamic global rates set by the admin
         const [settingRows] = await pool.query(`SELECT key, value FROM settings WHERE key IN ('default_voice_rate', 'default_video_rate')`);
         let globalAudioRate = 20;
@@ -169,33 +175,6 @@ module.exports = (io) => {
         const defaultRate = type === 'audio' ? globalAudioRate : globalVideoRate;
         console.log('?? BACKEND: defaultRate for', type, 'is', defaultRate);
         const [walletRows] = await pool.query(`SELECT coin_balance FROM wallets WHERE user_id = $1`, [callerId]);
-      const { type } = data;
-      const callerId = socket.user.id;
-
-      // Ensure Caller isn't on DND
-      const [callerRows] = await pool.query(`SELECT dnd_enabled FROM users WHERE id = $1`, [callerId]);
-      if (callerRows.length > 0 && callerRows[0].dnd_enabled) {
-        return socket.emit('call_blocked_dnd', { message: 'Do Not Disturb is on' });
-      }
-
-      // Fetch the dynamic global rates set by the admin
-        const [settingRows] = await pool.query(`SELECT key, value FROM settings WHERE key IN ('default_voice_rate', 'default_video_rate')`);
-        let globalAudioRate = 20;
-        let globalVideoRate = 40;
-        for (const row of settingRows) {
-          if (row.key === 'default_voice_rate') globalAudioRate = parseInt(row.value, 10);
-          if (row.key === 'default_video_rate') globalVideoRate = parseInt(row.value, 10);
-        }
-        
-        // Check caller wallet for global rate to ensure they have minimum balance
-        const defaultRate = type === 'audio' ? globalAudioRate : globalVideoRate;
-        const [walletRows] = await pool.query(`SELECT coin_balance FROM wallets WHERE user_id = $1`, [callerId]);
-        if (walletRows.length === 0 || parseFloat(walletRows[0].coin_balance) < defaultRate) {
-          return socket.emit('call_blocked_insufficient_coins', { message: 'Insufficient coins to start call.', requiredCoins: defaultRate });
-        }
-
-      try {
-        `, [callerId]);
         
         let callerBalance = 0;
         if (walletRows.length > 0) {
