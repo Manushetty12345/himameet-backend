@@ -58,7 +58,7 @@ module.exports = (io) => {
         // Check if caller has enough coins
         const [walletRows] = await pool.query(`SELECT coin_balance FROM wallets WHERE user_id = $1`, [callerId]);
         if (walletRows.length === 0 || parseFloat(walletRows[0].coin_balance) < rate) {
-          return socket.emit('call_blocked_insufficient_coins', { message: 'Insufficient coins to start call.' });
+          return socket.emit('call_blocked_insufficient_coins', { message: 'Insufficient coins to start call.', requiredCoins: rate });
         }
 
         const [result] = await pool.query(
@@ -171,7 +171,7 @@ module.exports = (io) => {
         const defaultRate = type === 'audio' ? globalAudioRate : globalVideoRate;
         const [walletRows] = await pool.query(`SELECT coin_balance FROM wallets WHERE user_id = $1`, [callerId]);
         if (walletRows.length === 0 || parseFloat(walletRows[0].coin_balance) < defaultRate) {
-          return socket.emit('call_blocked_insufficient_coins', { message: 'Insufficient coins to start call.' });
+          return socket.emit('call_blocked_insufficient_coins', { message: 'Insufficient coins to start call.', requiredCoins: defaultRate });
         }
 
       try {
