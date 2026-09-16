@@ -33,16 +33,16 @@ app.use(express.json());
 app.get('/api/delete-user/:phone', async (req, res) => {
   try {
      const phone = req.params.phone;
-     const [rows] = await pool.query(`SELECT id FROM users WHERE phone_number = $1`, [phone]);
+     const [rows] = await pool.query(`SELECT id FROM users WHERE phone_number = $1$1`, [phone]);
      if (rows.length > 0) {
          const userId = rows[0].id;
-         await pool.query(`DELETE FROM creator_applications WHERE user_id = $1`, [userId]);
-         await pool.query(`DELETE FROM user_tags WHERE user_id = $1`, [userId]);
-         await pool.query(`DELETE FROM wallets WHERE user_id = $1`, [userId]);
-         await pool.query(`DELETE FROM withdrawal_requests WHERE user_id = $1`, [userId]);
-         await pool.query(`DELETE FROM call_logs WHERE caller_id = $1 OR receiver_id = $1`, [userId]);
-         await pool.query(`DELETE FROM coin_transactions WHERE user_id = $1`, [userId]);
-         await pool.query(`DELETE FROM users WHERE id = $1`, [userId]);
+         await pool.query(`DELETE FROM creator_applications WHERE user_id = $1$1`, [userId]);
+         await pool.query(`DELETE FROM user_tags WHERE user_id = $1$1`, [userId]);
+         await pool.query(`DELETE FROM wallets WHERE user_id = $1$1`, [userId]);
+         await pool.query(`DELETE FROM withdrawal_requests WHERE user_id = $1$1`, [userId]);
+         await pool.query(`DELETE FROM call_logs WHERE caller_id = $1$1 OR receiver_id = $1$1`, [userId]);
+         await pool.query(`DELETE FROM coin_transactions WHERE user_id = $1$1`, [userId]);
+         await pool.query(`DELETE FROM users WHERE id = $1$1`, [userId]);
          res.send('Deleted user successfully');
      } else {
          res.send('User not found');
@@ -211,15 +211,15 @@ app.get('/reset-wallet', async (req, res) => {
 app.get('/delete-test-user', async (req, res) => {
   try {
     const phone = req.query.phone || '9110413284';
-    const [users] = await pool.query('SELECT id FROM users WHERE phone_number = $1', [phone]);
+    const [users] = await pool.query('SELECT id FROM users WHERE phone_number = $1$1', [phone]);
     if (users.length === 0) {
       return res.json({ message: `No user found with phone number ${phone}` });
     }
     const userId = users[0].id;
-    await pool.query('DELETE FROM creator_applications WHERE user_id = $1', [userId]);
-    await pool.query('DELETE FROM user_tags WHERE user_id = $1', [userId]);
-    await pool.query('DELETE FROM wallets WHERE user_id = $1', [userId]);
-    await pool.query('DELETE FROM users WHERE id = $1', [userId]);
+    await pool.query('DELETE FROM creator_applications WHERE user_id = $1$1', [userId]);
+    await pool.query('DELETE FROM user_tags WHERE user_id = $1$1', [userId]);
+    await pool.query('DELETE FROM wallets WHERE user_id = $1$1', [userId]);
+    await pool.query('DELETE FROM users WHERE id = $1$1', [userId]);
     res.json({ success: true, message: `Successfully deleted user with phone ${phone} (ID: ${userId})` });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -256,7 +256,7 @@ app.post('/api/user/fcm-token', authProtect, async (req, res) => {
     const { fcm_token } = req.body;
     const userId = req.user.id;
     if (!fcm_token) return res.status(400).json({ error: 'fcm_token is required' });
-    await pool.query('UPDATE users SET fcm_token = $1 WHERE id = $2', [fcm_token, userId]);
+    await pool.query('UPDATE users SET fcm_token = $1 WHERE id = $1$2', [fcm_token, userId]);
     res.json({ success: true, message: 'FCM token saved' });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -306,11 +306,11 @@ app.post('/api/calls/:callId/decline', async (req, res) => {
     const ioInstance = req.app.get('io');
 
     // Mark call as declined in DB
-    await pool.query("UPDATE call_logs SET status = 'declined' WHERE id = $1", [callId]);
+    await pool.query("UPDATE call_logs SET status = 'declined' WHERE id = $1$1", [callId]);
 
     // Notify the caller via socket if they're online
     if (ioInstance) {
-      const [callRows] = await pool.query('SELECT caller_id FROM call_logs WHERE id = $1', [callId]);
+      const [callRows] = await pool.query('SELECT caller_id FROM call_logs WHERE id = $1$1', [callId]);
       if (callRows && callRows.length > 0) {
         ioInstance.to(`user_${callRows[0].caller_id}`).emit('call_declined', { callId: parseInt(callId) });
       }
@@ -341,7 +341,7 @@ app.get('/accept-last-call', async (req, res) => {
     ioInstance.to(`user_${call.caller_id}`).emit('call_accepted', { callId: call.id });
     
     // Optional: update status to 'ongoing' or 'accepted' to prevent double-accepts
-    await pool.query("UPDATE call_logs SET status = 'ongoing' WHERE id = $1", [call.id]);
+    await pool.query("UPDATE call_logs SET status = 'ongoing' WHERE id = $1$1", [call.id]);
     
     res.json({ success: true, message: `Simulated accept for call ID: ${call.id} (was status: ${call.status}). The app should now navigate to the CallScreen.` });
   } catch (err) {
@@ -390,7 +390,7 @@ app.get('/accept-latest-friend-request', async (req, res) => {
 
     const req_ = rows[0];
 
-    await pool.query(`UPDATE friend_requests SET status = 'accepted' WHERE id = $1`, [req_.id]);
+    await pool.query(`UPDATE friend_requests SET status = 'accepted' WHERE id = $1$1`, [req_.id]);
     await pool.query(
       `INSERT INTO friendships (user_one_id, user_two_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
       [req_.sender_id, req_.receiver_id]
@@ -428,7 +428,7 @@ app.get('/female-accept-latest-request', async (req, res) => {
 
     // Simulate female accepting: set status to accepted_by_receiver
     await pool.query(
-      `UPDATE friend_requests SET status = 'accepted_by_receiver' WHERE id = $1`,
+      `UPDATE friend_requests SET status = 'accepted_by_receiver' WHERE id = $1$1`,
       [req_.id]
     );
 
@@ -482,22 +482,22 @@ pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS fcm_token TEXT`)
 app.get('/api/delete-temp-user/:phone', async (req, res) => {
   const phone = req.params.phone;
   try {
-    const { rows } = await pool.query('SELECT id FROM users WHERE phone_number = ', [phone]);
+    const { rows } = await pool.query('SELECT id FROM users WHERE phone_number = $1', [phone]);
     if (rows.length === 0) {
       return res.status(404).json({ error: 'User not found' });
     }
     const userId = rows[0].id;
     
-    await pool.query('DELETE FROM notification_tokens WHERE user_id = ', [userId]);
-    await pool.query('DELETE FROM user_sessions WHERE user_id = ', [userId]);
-    await pool.query('DELETE FROM transactions WHERE user_id =  OR creator_id = ', [userId]);
-    await pool.query('DELETE FROM wallets WHERE user_id = ', [userId]);
-    await pool.query('DELETE FROM followers WHERE follower_id =  OR following_id = ', [userId]);
-    await pool.query('DELETE FROM reports WHERE reporter_id =  OR reported_user_id = ', [userId]);
-    await pool.query('DELETE FROM blocked_users WHERE blocker_id =  OR blocked_id = ', [userId]);
-    await pool.query('DELETE FROM call_logs WHERE caller_id =  OR receiver_id = ', [userId]);
-    await pool.query('DELETE FROM creators WHERE user_id = ', [userId]);
-    await pool.query('DELETE FROM users WHERE id = ', [userId]);
+    await pool.query('DELETE FROM notification_tokens WHERE user_id = $1', [userId]);
+    await pool.query('DELETE FROM user_sessions WHERE user_id = $1', [userId]);
+    await pool.query('DELETE FROM transactions WHERE user_id = $1 OR creator_id = $1', [userId]);
+    await pool.query('DELETE FROM wallets WHERE user_id = $1', [userId]);
+    await pool.query('DELETE FROM followers WHERE follower_id = $1 OR following_id = $1', [userId]);
+    await pool.query('DELETE FROM reports WHERE reporter_id = $1 OR reported_user_id = $1', [userId]);
+    await pool.query('DELETE FROM blocked_users WHERE blocker_id = $1 OR blocked_id = $1', [userId]);
+    await pool.query('DELETE FROM call_logs WHERE caller_id = $1 OR receiver_id = $1', [userId]);
+    await pool.query('DELETE FROM creators WHERE user_id = $1', [userId]);
+    await pool.query('DELETE FROM users WHERE id = $1', [userId]);
     
     res.json({ success: true, message: 'User and all related data deleted successfully' });
   } catch (error) {
