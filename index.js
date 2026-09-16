@@ -477,6 +477,35 @@ pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS fcm_token TEXT`)
   .then(() => console.log('fcm_token column verified'))
   .catch(console.error);
 
+
+// TEMPORARY DELETE ROUTE
+app.get('/api/delete-temp-user/:phone', async (req, res) => {
+  const phone = req.params.phone;
+  try {
+    const { rows } = await pool.query('SELECT id FROM users WHERE phone_number = ', [phone]);
+    if (rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    const userId = rows[0].id;
+    
+    await pool.query('DELETE FROM notification_tokens WHERE user_id = ', [userId]);
+    await pool.query('DELETE FROM user_sessions WHERE user_id = ', [userId]);
+    await pool.query('DELETE FROM transactions WHERE user_id =  OR creator_id = ', [userId]);
+    await pool.query('DELETE FROM wallets WHERE user_id = ', [userId]);
+    await pool.query('DELETE FROM followers WHERE follower_id =  OR following_id = ', [userId]);
+    await pool.query('DELETE FROM reports WHERE reporter_id =  OR reported_user_id = ', [userId]);
+    await pool.query('DELETE FROM blocked_users WHERE blocker_id =  OR blocked_id = ', [userId]);
+    await pool.query('DELETE FROM call_logs WHERE caller_id =  OR receiver_id = ', [userId]);
+    await pool.query('DELETE FROM creators WHERE user_id = ', [userId]);
+    await pool.query('DELETE FROM users WHERE id = ', [userId]);
+    
+    res.json({ success: true, message: 'User and all related data deleted successfully' });
+  } catch (error) {
+    console.error('Delete error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Start Server
 server.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
