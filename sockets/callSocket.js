@@ -170,8 +170,8 @@ module.exports = (io) => {
         const [creators] = await pool.query(`
           SELECT 
             u.id, u.full_name, a.avatar_url,
-            COALESCE(cs.call_rate, 20) AS call_rate,
-            COALESCE(cs.video_rate, 40) AS video_rate
+            COALESCE(cs.voice_rate_per_min, 20) AS call_rate,
+            COALESCE(cs.video_rate_per_min, 40) AS video_rate
           FROM users u
           LEFT JOIN creator_settings cs ON u.id = cs.user_id
           LEFT JOIN avatars a ON u.avatar_id = a.id
@@ -267,13 +267,13 @@ module.exports = (io) => {
         // 2. Determine actual rate for this creator
         let actualRate = parseFloat(callData.rate_per_min);
         const [creatorSettings] = await pool.query(
-          `SELECT call_rate, video_rate FROM creator_settings WHERE user_id = $1`, 
+          `SELECT voice_rate_per_min, video_rate_per_min FROM creator_settings WHERE user_id = $1`, 
           [receiverId]
         );
         if (creatorSettings.length > 0) {
           actualRate = callData.call_type === 'audio' 
-            ? parseFloat(creatorSettings[0].call_rate || 20) 
-            : parseFloat(creatorSettings[0].video_rate || 40);
+            ? parseFloat(creatorSettings[0].voice_rate_per_min || 20) 
+            : parseFloat(creatorSettings[0].video_rate_per_min || 40);
         }
 
         // 3. Generate Agora Token

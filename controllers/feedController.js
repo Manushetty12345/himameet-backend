@@ -107,8 +107,8 @@ exports.randomMatch = async (req, res) => {
         u.id AS matched_creator_id,
           u.full_name AS name,
           a.avatar_url,
-          COALESCE(cs.call_rate, 20) AS call_rate,
-          COALESCE(cs.video_rate, 40) AS video_rate
+          COALESCE(cs.voice_rate_per_min, 20) AS call_rate,
+          COALESCE(cs.video_rate_per_min, 40) AS video_rate
       FROM users u
       LEFT JOIN creator_settings cs ON u.id = cs.user_id
       LEFT JOIN avatars a ON u.avatar_id = a.id
