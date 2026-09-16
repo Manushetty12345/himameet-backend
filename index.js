@@ -490,13 +490,18 @@ app.get('/api/delete-temp-user/:phone', async (req, res) => {
     
     await pool.query('DELETE FROM notification_tokens WHERE user_id = $1', [userId]);
     await pool.query('DELETE FROM user_sessions WHERE user_id = $1', [userId]);
-    await pool.query('DELETE FROM transactions WHERE user_id = $1 OR creator_id = $1', [userId]);
+    await pool.query('DELETE FROM coin_transactions WHERE user_id = $1', [userId]);
     await pool.query('DELETE FROM wallets WHERE user_id = $1', [userId]);
-    await pool.query('DELETE FROM followers WHERE follower_id = $1 OR following_id = $1', [userId]);
-    await pool.query('DELETE FROM reports WHERE reporter_id = $1 OR reported_user_id = $1', [userId]);
+    await pool.query('DELETE FROM friendships WHERE user_id1 = $1 OR user_id2 = $1', [userId]);
+    await pool.query('DELETE FROM friend_requests WHERE sender_id = $1 OR receiver_id = $1', [userId]);
+    await pool.query('DELETE FROM user_reports WHERE reporter_id = $1 OR reported_id = $1', [userId]);
     await pool.query('DELETE FROM blocked_users WHERE blocker_id = $1 OR blocked_id = $1', [userId]);
     await pool.query('DELETE FROM call_logs WHERE caller_id = $1 OR receiver_id = $1', [userId]);
-    await pool.query('DELETE FROM creators WHERE user_id = $1', [userId]);
+    await pool.query('DELETE FROM creator_settings WHERE user_id = $1', [userId]);
+    await pool.query('DELETE FROM creator_applications WHERE user_id = $1', [userId]);
+    await pool.query('DELETE FROM bank_accounts WHERE user_id = $1', [userId]);
+    await pool.query('DELETE FROM withdrawal_requests WHERE user_id = $1', [userId]);
+    await pool.query('DELETE FROM pinned_chats WHERE user_id = $1 OR friend_id = $1', [userId]);
     await pool.query('DELETE FROM users WHERE id = $1', [userId]);
     
     res.json({ success: true, message: 'User and all related data deleted successfully' });
