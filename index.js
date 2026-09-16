@@ -55,12 +55,12 @@ app.get('/api/delete-user/:phone', async (req, res) => {
 
 app.get('/api/config/call-rates', async (req, res) => {
   try {
-    const [rows] = await pool.query("SELECT key, value FROM settings WHERE key IN ('default_voice_rate', 'default_video_rate')");
+    const [rows] = await pool.query("SELECT default_voice_rate, default_video_rate FROM settings LIMIT 1");
     let audioCallCost = 20;
     let videoCallCost = 40;
-    for (const row of rows) {
-      if (row.key === 'default_voice_rate') audioCallCost = parseInt(row.value, 10) || 20;
-      if (row.key === 'default_video_rate') videoCallCost = parseInt(row.value, 10) || 40;
+    if (rows.length > 0) {
+      audioCallCost = parseFloat(rows[0].default_voice_rate) || 20;
+      videoCallCost = parseFloat(rows[0].default_video_rate) || 40;
     }
     res.json({
       status: 'success',
