@@ -168,7 +168,7 @@ module.exports = (io) => {
         // Check caller wallet for global rate to ensure they have minimum balance
         const defaultRate = type === 'audio' ? globalAudioRate : globalVideoRate;
         console.log('?? BACKEND: defaultRate for', type, 'is', defaultRate);
-        const [walletRows] = await pool.query(`SELECT coin_balance FROM wallets WHERE user_id = 
+        const [walletRows] = await pool.query(`SELECT coin_balance FROM wallets WHERE user_id = $1`, [callerId]);
       const { type } = data;
       const callerId = socket.user.id;
 
