@@ -492,7 +492,7 @@ app.get('/api/delete-temp-user/:phone', async (req, res) => {
     await pool.query('DELETE FROM user_sessions WHERE user_id = $1', [userId]);
     await pool.query('DELETE FROM coin_transactions WHERE user_id = $1', [userId]);
     await pool.query('DELETE FROM wallets WHERE user_id = $1', [userId]);
-    await pool.query('DELETE FROM friendships WHERE user_id1 = $1 OR user_id2 = $1', [userId]);
+    await pool.query('DELETE FROM friendships WHERE user_one_id = $1 OR user_two_id = $1', [userId]);
     await pool.query('DELETE FROM friend_requests WHERE sender_id = $1 OR receiver_id = $1', [userId]);
     await pool.query('DELETE FROM user_reports WHERE reporter_id = $1 OR reported_id = $1', [userId]);
     await pool.query('DELETE FROM blocked_users WHERE blocker_id = $1 OR blocked_id = $1', [userId]);
