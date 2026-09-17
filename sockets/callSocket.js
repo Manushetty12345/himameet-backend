@@ -582,6 +582,9 @@ function startCallBillingTimer(callId, io) {
         WHERE id = $2
       `, [rate, callId]);
 
+      // Notify caller of deduction so their screen updates live
+      io.to(`call_${callId}`).emit('call_coins_deducted', { coins_deducted: rate });
+
       // Log transactions
       await pool.query(`INSERT INTO coin_transactions (user_id, type, coins) VALUES ($1, 'call_spend', $2)`, [caller_id, -rate]);
       await pool.query(`INSERT INTO coin_transactions (user_id, type, coins) VALUES ($1, 'call_earn', $2)`, [receiver_id, rate]);

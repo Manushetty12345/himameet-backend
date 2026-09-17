@@ -237,7 +237,8 @@ exports.getCreatorCallHistory = async (req, res) => {
 
     res.status(200).json({
       status: 'success',
-      data: rows
+      data: rows,
+      meta: { page, limit }
     });
   } catch (error) {
     console.error('Error fetching creator call history:', error);

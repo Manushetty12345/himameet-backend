@@ -191,6 +191,9 @@ exports.rejectCall = async (req, res) => {
 exports.getMissedCalls = async (req, res) => {
   try {
     const userId = req.user.id;
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20;
+    const offset = (page - 1) * limit;
 
     const [rows] = await pool.query(`
       SELECT 
@@ -208,7 +211,8 @@ exports.getMissedCalls = async (req, res) => {
         AND c.status IN ('missed', 'rejected')
         AND (c.receiver_deleted IS NULL OR c.receiver_deleted = false)
       ORDER BY c.created_at DESC
-    `, [userId]);
+      LIMIT $2 OFFSET $3
+    `, [userId, limit, offset]);
 
     res.status(200).json({
       status: 'success',
@@ -222,7 +226,8 @@ exports.getMissedCalls = async (req, res) => {
         call_type: row.call_type,
         started_at: row.started_at,
         end_reason: row.end_reason
-      }))
+      })),
+      meta: { page, limit }
     });
   } catch (error) {
     console.error('Error fetching missed calls:', error);
