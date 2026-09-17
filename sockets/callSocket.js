@@ -289,14 +289,26 @@ module.exports = (io) => {
 
         // 2. Determine actual rate for this creator
         let actualRate = parseFloat(callData.rate_per_min);
+        
+        // Fetch global rates as fallback
+        const [settingRows] = await pool.query(`SELECT key, value FROM settings WHERE key IN ('default_voice_rate', 'default_video_rate')`);
+        let globalAudioRate = 20;
+        let globalVideoRate = 40;
+        for (const row of settingRows) {
+          if (row.key === 'default_voice_rate') globalAudioRate = parseFloat(row.value);
+          if (row.key === 'default_video_rate') globalVideoRate = parseFloat(row.value);
+        }
+
         const [creatorSettings] = await pool.query(
           `SELECT voice_rate_per_min, video_rate_per_min FROM creator_settings WHERE user_id = $1`, 
           [receiverId]
         );
         if (creatorSettings.length > 0) {
           actualRate = callData.call_type === 'audio' 
-            ? parseFloat(creatorSettings[0].voice_rate_per_min || 20) 
-            : parseFloat(creatorSettings[0].video_rate_per_min || 40);
+            ? parseFloat(creatorSettings[0].voice_rate_per_min || globalAudioRate) 
+            : parseFloat(creatorSettings[0].video_rate_per_min || globalVideoRate);
+        } else {
+          actualRate = callData.call_type === 'audio' ? globalAudioRate : globalVideoRate;
         }
 
         // 3. Generate Agora Token

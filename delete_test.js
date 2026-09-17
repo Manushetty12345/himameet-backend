@@ -4,7 +4,7 @@ const pool = require('./db');
 async function run() {
   try {
     const [u] = await pool.query("SELECT id FROM users WHERE phone_number = '9110413284'");
-    if(!u.length) {
+    if (!u.length) {
       console.log('No user found');
       process.exit(0);
     }
@@ -15,7 +15,7 @@ async function run() {
     await pool.query('DELETE FROM users WHERE id = $1', [uid]);
     console.log('User deleted successfully (ID: ' + uid + ')');
     process.exit(0);
-  } catch(e) {
+  } catch (e) {
     console.error(e);
     process.exit(1);
   }
