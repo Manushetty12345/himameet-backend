@@ -361,10 +361,16 @@ module.exports = (io) => {
         const receiverName = receiverProfile.length > 0 ? receiverProfile[0].full_name : 'Creator';
         const receiverAvatar = receiverProfile.length > 0 ? receiverProfile[0].avatar_url : 'https://i.pravatar.cc/300';
 
+        // Calculate exact max seconds before any billing deduction occurs
+        const [walletRows] = await pool.query(`SELECT coin_balance FROM wallets WHERE user_id = $1`, [callerId]);
+        const callerBalance = walletRows.length > 0 ? parseFloat(walletRows[0].coin_balance) : 0;
+        const maxSeconds = Math.floor(callerBalance / actualRate) * 60;
+
         io.to(`user_${callerId}`).emit('call_accepted', { 
           callId, 
           agoraToken, 
           rate: actualRate,
+          maxSeconds: maxSeconds,
           receiverId: receiverId,
           receiverName: receiverName,
           receiverAvatar: receiverAvatar
