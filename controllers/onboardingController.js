@@ -1,4 +1,4 @@
-﻿const pool = require('../db');
+const pool = require('../db');
 const jwt = require('jsonwebtoken');
 const { v4: uuidv4 } = require('uuid');
 
@@ -253,14 +253,17 @@ exports.submitCreatorApplication = async (req, res) => {
     if (interests) {
       try {
         let parsedInterests = JSON.parse(interests);
-        for (let tagId of parsedInterests) {
-          await pool.query(
-            `INSERT INTO user_tags (user_id, tag_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
-            [newUserId, tagId]
-          );
+        for (let tagName of parsedInterests) {
+          const [tagRows] = await pool.query('SELECT id FROM tags WHERE name = $1', [tagName]);
+          if (tagRows.length > 0) {
+            await pool.query(
+              `INSERT INTO user_tags (user_id, tag_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+              [newUserId, tagRows[0].id]
+            );
+          }
         }
       } catch (e) {
-        console.warn('Could not parse interests', interests);
+        console.warn('Could not parse or insert interests', e);
       }
     }
 
