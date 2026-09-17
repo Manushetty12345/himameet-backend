@@ -556,6 +556,22 @@ exports.getCallLogs = async (req, res) => {
   }
 };
 
+// ─── Bank Details ──────────────────────────────────────────────────────────────
+exports.getAllBankDetails = async (req, res) => {
+  try {
+    const [rows] = await pool.query(`
+      SELECT ba.*, u.full_name, u.phone_number as user_phone
+      FROM bank_accounts ba
+      JOIN users u ON ba.user_id = u.id
+      ORDER BY ba.created_at DESC
+    `);
+    res.json({ status: 'success', data: rows });
+  } catch (err) {
+    console.error('[getAllBankDetails] Error:', err);
+    res.status(500).json({ status: 'error', message: 'Internal Server Error' });
+  }
+};
+
 
 
 // --- Coin Packages (Admin) ----------------------------------------------------

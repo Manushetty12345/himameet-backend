@@ -38,9 +38,10 @@ router.put('/global-rates', adminController.updateGlobalRates);
 router.get('/applications', adminController.getCreatorApplications);
 router.put('/applications/:applicationId/review', adminController.reviewApplication);
 
-// Withdrawals
+// Withdrawals & Bank Details
 router.get('/withdrawals', adminController.getWithdrawals);
 router.put('/withdrawals/:withdrawalId/process', adminController.processWithdrawal);
+router.get('/bank-details', adminController.getAllBankDetails);
 
 // Reports
 router.get('/reports', adminController.getReports);
