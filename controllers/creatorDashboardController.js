@@ -309,36 +309,21 @@ exports.getEarningsSummary = async (req, res) => {
 exports.saveBankDetails = async (req, res) => {
   try {
     const creatorId = req.user.id;
-    const { account_holder_name, account_number, ifsc_code, pan_number, upi_id, phone_number } = req.body;
+    const { account_holder_name, account_number, ifsc_code, pan_number } = req.body;
     
-    // Handle files if uploaded via multer .fields()
-    let passbook_image_url = req.body.passbook_image_url || '';
-    if (req.files && req.files['passbook_photo']) {
-      passbook_image_url = '/uploads/bank_kyc/' + req.files['passbook_photo'][0].filename;
-    }
-    
-    let pan_photo_url = req.body.pan_photo_url || '';
-    if (req.files && req.files['pan_photo']) {
-      pan_photo_url = '/uploads/bank_kyc/' + req.files['pan_photo'][0].filename;
-    }
-
     if (!account_holder_name || !account_number || !ifsc_code || !pan_number) {
       return res.status(400).json({ status: 'error', message: 'Missing required bank details' });
     }
 
     await pool.query(`
-      INSERT INTO bank_accounts (user_id, account_holder_name, account_number, ifsc_code, passbook_image_url, pan_number, upi_id, pan_photo_url, phone_number)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      INSERT INTO bank_accounts (user_id, account_holder_name, account_number, ifsc_code, pan_number)
+      VALUES ($1, $2, $3, $4, $5)
       ON CONFLICT (user_id) DO UPDATE SET 
         account_holder_name = $2, 
         account_number = $3, 
         ifsc_code = $4, 
-        passbook_image_url = COALESCE(NULLIF($5, ''), bank_accounts.passbook_image_url), 
-        pan_number = $6, 
-        upi_id = $7, 
-        pan_photo_url = COALESCE(NULLIF($8, ''), bank_accounts.pan_photo_url),
-        phone_number = $9
-    `, [creatorId, account_holder_name, account_number, ifsc_code, passbook_image_url, pan_number, upi_id || '', pan_photo_url, phone_number || '']);
+        pan_number = $5
+    `, [creatorId, account_holder_name, account_number, ifsc_code, pan_number]);
 
     res.status(200).json({ status: 'success', message: 'Bank details saved successfully.' });
   } catch (error) {
@@ -353,7 +338,7 @@ exports.saveBankDetails = async (req, res) => {
 exports.getBankDetails = async (req, res) => {
   try {
     const creatorId = req.user.id;
-    const [rows] = await pool.query(`SELECT account_holder_name, account_number, ifsc_code, pan_number, upi_id, passbook_image_url, pan_photo_url, phone_number FROM bank_accounts WHERE user_id = $1`, [creatorId]);
+    const [rows] = await pool.query(`SELECT account_holder_name, account_number, ifsc_code, pan_number FROM bank_accounts WHERE user_id = $1`, [creatorId]);
     
     if (rows.length === 0) {
       return res.status(404).json({ status: 'error', message: 'No bank details found' });

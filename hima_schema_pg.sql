@@ -425,7 +425,7 @@ CREATE TABLE bank_accounts (
     account_holder_name     VARCHAR(100) NOT NULL,
     account_number          VARCHAR(50) NOT NULL,
     ifsc_code               VARCHAR(20) NOT NULL,
-    passbook_image_url      TEXT NOT NULL,
+    pan_number              VARCHAR(20) NOT NULL,
     is_verified             BOOLEAN DEFAULT FALSE,
     created_at              TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at              TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
