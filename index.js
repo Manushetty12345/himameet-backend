@@ -55,18 +55,23 @@ app.get('/api/delete-user/:phone', async (req, res) => {
 
 app.get('/api/config/call-rates', async (req, res) => {
   try {
-    const [rows] = await pool.query("SELECT default_voice_rate, default_video_rate FROM settings LIMIT 1");
+    const [rows] = await pool.query("SELECT key, value FROM settings WHERE key IN ('default_voice_rate', 'default_video_rate', 'coins_to_rupee_ratio')");
     let audioCallCost = 20;
     let videoCallCost = 40;
-    if (rows.length > 0) {
-      audioCallCost = parseFloat(rows[0].default_voice_rate) || 20;
-      videoCallCost = parseFloat(rows[0].default_video_rate) || 40;
-    }
+    let coinsToRupeeRatio = 100;
+    
+    rows.forEach(row => {
+      if (row.key === 'default_voice_rate') audioCallCost = parseFloat(row.value) || 20;
+      if (row.key === 'default_video_rate') videoCallCost = parseFloat(row.value) || 40;
+      if (row.key === 'coins_to_rupee_ratio') coinsToRupeeRatio = parseFloat(row.value) || 100;
+    });
+
     res.json({
       status: 'success',
       data: {
         audioCallCost,
-        videoCallCost
+        videoCallCost,
+        coinsToRupeeRatio
       }
     });
   } catch (err) {

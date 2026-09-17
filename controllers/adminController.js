@@ -632,16 +632,18 @@ exports.updateCreatorRates = async (req, res) => {
 
 exports.getGlobalRates = async (req, res) => {
   try {
-    const [rows] = await pool.query(`SELECT key, value FROM settings WHERE key IN ('default_voice_rate', 'default_video_rate')`);
+    const [rows] = await pool.query(`SELECT key, value FROM settings WHERE key IN ('default_voice_rate', 'default_video_rate', 'coins_to_rupee_ratio')`);
     let voiceRate = 20;
     let videoRate = 40;
+    let coinsToRupeeRatio = 100;
     
     for (const row of rows) {
       if (row.key === 'default_voice_rate') voiceRate = parseInt(row.value, 10);
       if (row.key === 'default_video_rate') videoRate = parseInt(row.value, 10);
+      if (row.key === 'coins_to_rupee_ratio') coinsToRupeeRatio = parseInt(row.value, 10);
     }
     
-    res.json({ status: 'success', data: { voice_rate_per_min: voiceRate, video_rate_per_min: videoRate } });
+    res.json({ status: 'success', data: { voice_rate_per_min: voiceRate, video_rate_per_min: videoRate, coins_to_rupee_ratio: coinsToRupeeRatio } });
   } catch (err) {
     console.error('[getGlobalRates] Error:', err);
     res.status(500).json({ status: 'error', message: 'Internal Server Error' });
@@ -650,7 +652,7 @@ exports.getGlobalRates = async (req, res) => {
 
 exports.updateGlobalRates = async (req, res) => {
   try {
-    const { voice_rate_per_min, video_rate_per_min } = req.body;
+    const { voice_rate_per_min, video_rate_per_min, coins_to_rupee_ratio } = req.body;
     
     // Save to settings table
     await pool.query(`
@@ -662,13 +664,20 @@ exports.updateGlobalRates = async (req, res) => {
       INSERT INTO settings (key, value, description) VALUES ('default_video_rate', $1, 'Global video rate for female creators')
       ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value
     `, [video_rate_per_min.toString()]);
+
+    if (coins_to_rupee_ratio) {
+      await pool.query(`
+        INSERT INTO settings (key, value, description) VALUES ('coins_to_rupee_ratio', $1, 'Conversion ratio: X coins equals 1 Rupee')
+        ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value
+      `, [coins_to_rupee_ratio.toString()]);
+    }
     
     // Immediately apply to all existing creators
     await pool.query(`
       UPDATE creator_settings SET voice_rate_per_min = $1, video_rate_per_min = $2
     `, [voice_rate_per_min, video_rate_per_min]);
     
-    res.json({ status: 'success', message: 'Global rates updated successfully' });
+    res.json({ status: 'success', message: 'Global rates and configuration updated successfully' });
   } catch (err) {
     console.error('[updateGlobalRates] Error:', err);
     res.status(500).json({ status: 'error', message: 'Internal Server Error' });
