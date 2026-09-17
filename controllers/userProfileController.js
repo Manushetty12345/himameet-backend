@@ -1,4 +1,4 @@
-﻿const pool = require('../db');
+const pool = require('../db');
 
 /**
  * 10.1 Get My Profile (Settings View)
@@ -14,10 +14,18 @@ exports.getMyProfile = async (req, res) => {
         a.avatar_url, 
         u.avatar_id,
         u.gender,
+        u.age,
+        u.about_me AS bio,
         u.dnd_enabled,
-          u.dnd_until,
+        u.dnd_until,
         l.name_english AS language_name,
-        l.name_native  AS language_native
+        l.name_native  AS language_native,
+        (
+          SELECT string_agg(t.name, ', ') 
+          FROM user_tags ut 
+          JOIN tags t ON ut.tag_id = t.id 
+          WHERE ut.user_id = u.id
+        ) AS interests
       FROM users u
       LEFT JOIN avatars a ON u.avatar_id = a.id
       LEFT JOIN languages l ON u.language_id = l.id
