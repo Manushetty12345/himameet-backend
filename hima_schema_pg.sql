@@ -437,6 +437,8 @@ CREATE TABLE withdrawal_requests (
     user_id                 BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     amount_inr              NUMERIC(10,2) NOT NULL,
     status                  VARCHAR(20) NOT NULL DEFAULT 'pending', -- 'pending', 'success', 'failed'
+    coins_deducted          BIGINT DEFAULT 0,
+    conversion_rate_used    NUMERIC(10,4) DEFAULT 0,
     admin_notes             TEXT,
     requested_at            TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     processed_at            TIMESTAMP

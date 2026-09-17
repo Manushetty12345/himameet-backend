@@ -252,7 +252,14 @@ exports.getCreatorCallHistory = async (req, res) => {
 exports.getEarningsSummary = async (req, res) => {
   try {
     const creatorId = req.user.id;
-    const conversionRate = 0.10;
+    
+    // Fetch dynamic conversion rate from settings
+    const [settingRows] = await pool.query(`SELECT value FROM settings WHERE key = 'coins_per_rupee'`);
+    let coinsPerRupee = 10;
+    if (settingRows.length > 0) {
+      coinsPerRupee = parseFloat(settingRows[0].value) || 10;
+    }
+    const conversionRate = 1 / coinsPerRupee;
 
     const [lifetimeRows] = await pool.query(`SELECT SUM(coins) as total FROM coin_transactions WHERE user_id = $1 AND type IN ('call_earn', 'chat_earn', 'gift')`, [creatorId]);
     const lifetimeCoins = lifetimeRows[0].total || 0;
@@ -366,8 +373,18 @@ exports.submitWithdrawal = async (req, res) => {
   try {
     const creatorId = req.user.id;
     const { amount_inr } = req.body;
-    const conversionRate = 0.10;
-    const requiredCoins = amount_inr / conversionRate;
+    
+    if (!amount_inr || amount_inr < 100) {
+      return res.status(400).json({ status: 'error', message: 'Minimum withdrawal amount is ₹100.' });
+    }
+
+    const [settingRows] = await pool.query(`SELECT value FROM settings WHERE key = 'coins_per_rupee'`);
+    let coinsPerRupee = 10;
+    if (settingRows.length > 0) {
+      coinsPerRupee = parseFloat(settingRows[0].value) || 10;
+    }
+    
+    const requiredCoins = Math.ceil(amount_inr * coinsPerRupee);
 
     const [bankRows] = await pool.query(`SELECT id FROM bank_accounts WHERE user_id = $1`, [creatorId]);
     if (bankRows.length === 0) {
@@ -381,7 +398,10 @@ exports.submitWithdrawal = async (req, res) => {
     }
 
     await pool.query(`INSERT INTO coin_transactions (user_id, type, coins) VALUES ($1, 'withdrawal', $2)`, [creatorId, -requiredCoins]);
-    await pool.query(`INSERT INTO withdrawal_requests (user_id, amount_inr, status) VALUES ($1, $2, 'pending')`, [creatorId, amount_inr]);
+    await pool.query(`
+      INSERT INTO withdrawal_requests (user_id, amount_inr, status, coins_deducted, conversion_rate_used)
+      VALUES ($1, $2, 'pending', $3, $4)
+    `, [creatorId, amount_inr, requiredCoins, coinsPerRupee]);
 
     res.status(200).json({ status: 'success', message: 'Withdrawal request submitted successfully.' });
   } catch (error) {
