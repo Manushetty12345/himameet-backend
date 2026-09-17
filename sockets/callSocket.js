@@ -373,7 +373,8 @@ module.exports = (io) => {
           maxSeconds: maxSeconds,
           receiverId: receiverId,
           receiverName: receiverName,
-          receiverAvatar: receiverAvatar
+          receiverAvatar: receiverAvatar,
+          callType: callData.call_type
         });
 
         // 6. Broadcast cancellation to all OTHER creators to stop their ringing modal
