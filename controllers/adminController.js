@@ -340,7 +340,7 @@ exports.getWithdrawals = async (req, res) => {
     const status = req.query.status || 'pending';
     const [rows] = await pool.query(`
       SELECT wr.*, u.full_name, u.phone_number,
-             ba.account_holder_name, ba.account_number, ba.ifsc_code, ba.passbook_photo_url,
+             ba.account_holder_name, ba.account_number, ba.ifsc_code, ba.passbook_image_url,
              ba.pan_number, ba.pan_photo_url, ba.upi_id, ba.phone_number as bank_phone
       FROM withdrawal_requests wr
       JOIN users u ON wr.user_id = u.id
