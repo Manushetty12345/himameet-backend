@@ -275,12 +275,13 @@ exports.checkStatus = async (req, res) => {
     const targetUserId = req.params.target_user_id;
 
     const [blockRows] = await pool.query(`
-      SELECT * FROM blocked_users 
+      SELECT blocker_id, blocked_id FROM blocked_users 
       WHERE (blocker_id = $1 AND blocked_id = $2) OR (blocker_id = $2 AND blocked_id = $1)
     `, [userId, targetUserId]);
 
     if (blockRows.length > 0) {
-      return res.status(200).json({ status: 'success', data: { friend_status: 'blocked' } });
+      const isBlocker = blockRows[0].blocker_id === userId;
+      return res.status(200).json({ status: 'success', data: { friend_status: isBlocker ? 'blocked' : 'blocked_by_them' } });
     }
 
     const [friendRows] = await pool.query(`
@@ -488,5 +489,33 @@ exports.debugFriends = async (req, res) => {
     res.json({ status: 'success', raw_db_rows: rows });
   } catch (err) {
     res.json({ error: err.message });
+  }
+};
+
+/**
+ * Get Blocked Users
+ */
+exports.getBlockedUsers = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const [rows] = await pool.query(`
+      SELECT 
+        u.id AS user_id, 
+        u.full_name AS name, 
+        a.avatar_url
+      FROM blocked_users bu
+      JOIN users u ON u.id = bu.blocked_id
+      LEFT JOIN avatars a ON u.avatar_id = a.id
+      WHERE bu.blocker_id = $1
+      ORDER BY bu.created_at DESC
+    `, [userId]);
+
+    res.status(200).json({
+      status: 'success',
+      data: rows
+    });
+  } catch (error) {
+    console.error('Error getting blocked users:', error);
+    res.status(500).json({ status: 'error', message: 'Internal Server Error' });
   }
 };

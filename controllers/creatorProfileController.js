@@ -74,9 +74,12 @@ exports.getProfile = async (req, res) => {
       `, [userId, creatorId]);
 
       const [blockRows] = await pool.query(`
-      SELECT id FROM blocked_users 
-      WHERE blocker_id = $1 AND blocked_id = $2
+      SELECT blocker_id, blocked_id FROM blocked_users 
+      WHERE (blocker_id = $1 AND blocked_id = $2) OR (blocker_id = $2 AND blocked_id = $1)
     `, [userId, creatorId]);
+
+    const isBlocker = blockRows.length > 0 && blockRows[0].blocker_id === userId;
+    const isBlockedByThem = blockRows.length > 0 && blockRows[0].blocker_id === creatorId;
 
     res.status(200).json({
       status: 'success',
@@ -95,7 +98,8 @@ exports.getProfile = async (req, res) => {
         friendship_status: friendshipStatus,
         is_notify_online_enabled: notifyRows.length > 0,
           is_favourite: favouriteRows.length > 0,
-        is_blocked: blockRows.length > 0
+        is_blocked: isBlocker,
+        is_blocked_by_them: isBlockedByThem
       }
     });
 
