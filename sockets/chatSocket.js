@@ -197,7 +197,12 @@ module.exports = (server) => {
           return;
         }
 
-        await pool.query(`UPDATE wallets SET coin_balance = coin_balance + $1 WHERE user_id = $2`, [CHAT_RATE_PER_MINUTE, femaleId]);
+        await pool.query(`
+          INSERT INTO wallets (user_id, coin_balance)
+          VALUES ($2, $1)
+          ON CONFLICT (user_id)
+          DO UPDATE SET coin_balance = wallets.coin_balance + $1
+        `, [CHAT_RATE_PER_MINUTE, femaleId]);
 
         await pool.query(
           `INSERT INTO coin_transactions (user_id, type, coins) VALUES ($1, 'chat_spend', $2)`,

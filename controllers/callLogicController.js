@@ -95,7 +95,12 @@ exports.heartbeat = async (req, res) => {
       const receiverId = receiverRows[0].receiver_id;
       // Taking a platform cut could happen here, let's just give full amount or maybe 80%? 
       // The requirement doesn't specify, we will just add it directly.
-      await pool.query('UPDATE wallets SET coin_balance = coin_balance + $1 WHERE user_id = $2', [costPerMin, receiverId]);
+      await pool.query(`
+        INSERT INTO wallets (user_id, coin_balance) 
+        VALUES ($2, $1) 
+        ON CONFLICT (user_id) 
+        DO UPDATE SET coin_balance = wallets.coin_balance + $1
+      `, [costPerMin, receiverId]);
     }
 
     res.json({ status: 'success', message: 'Heartbeat successful' });

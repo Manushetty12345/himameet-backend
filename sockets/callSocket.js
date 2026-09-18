@@ -570,7 +570,12 @@ function startCallBillingTimer(callId, io) {
       }
 
       // Add to receiver
-      await pool.query(`UPDATE wallets SET coin_balance = coin_balance + $1 WHERE user_id = $2`, [rate, receiver_id]);
+      await pool.query(`
+        INSERT INTO wallets (user_id, coin_balance) 
+        VALUES ($2, $1) 
+        ON CONFLICT (user_id) 
+        DO UPDATE SET coin_balance = wallets.coin_balance + $1
+      `, [rate, receiver_id]);
 
       // Record the tick
       await pool.query(`INSERT INTO call_billing_ticks (call_id, tick_number, coins_deducted) VALUES ($1, $2, $3)`, [callId, tick, rate]);
