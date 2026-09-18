@@ -93,13 +93,14 @@ exports.getFriends = async (req, res) => {
       LEFT JOIN conversations c ON (c.user_one_id = u.id AND c.user_two_id = $1) OR (c.user_one_id = $1 AND c.user_two_id = u.id)
       LEFT JOIN messages m ON m.id = c.last_message_id
         LEFT JOIN pinned_chats pc ON pc.user_id = $1 AND pc.friend_id = u.id
-      WHERE f.user_one_id = $2 OR f.user_two_id = $3
+      WHERE (f.user_one_id = $2 OR f.user_two_id = $3)
+        AND u.id NOT IN (SELECT blocked_id FROM blocked_users WHERE blocker_id = $1)
       ORDER BY u.id DESC
       LIMIT $4 OFFSET $5
     `, [userId, userId, userId, limit, offset]);
 
     console.log("DEBUG getFriends rows:", rows.map(r => ({ id: r.user_id, lastMsg: r.lastMessage, lMsg: r.last_message, lsm: r.lastmessage })));
-      const formattedData = rows.map(row => ({
+    const formattedData = rows.map(row => ({
       ...row,
       avatar_url: row.avatar_url || 'https://hima-bucket.s3.amazonaws.com/default-avatar.png',
       isOnline: row.is_online,
@@ -114,7 +115,7 @@ exports.getFriends = async (req, res) => {
       lastSeen: row.last_seen_at,
       conversationId: row.conversation_id,
       unreadCount: row.unread_count,
-        is_pinned: row.is_pinned
+      is_pinned: row.is_pinned
     }));
 
     res.status(200).json({
@@ -163,8 +164,8 @@ exports.getFavourites = async (req, res) => {
       LIMIT $2 OFFSET $3
     `, [userId, limit, offset]);
     console.log("DEBUG getFriends rows:", rows.map(r => ({ id: r.user_id, lastMsg: r.lastMessage, lMsg: r.last_message, lsm: r.lastmessage })));
-      const formattedData = rows.map(row => ({
-      ...row, 
+    const formattedData = rows.map(row => ({
+      ...row,
       avatar_url: row.avatar_url || 'https://hima-bucket.s3.amazonaws.com/default-avatar.png',
       isOnline: row.is_online,
       isVoiceOnline: row.is_voice_online,
@@ -234,7 +235,7 @@ exports.getRequestsSent = async (req, res) => {
       LIMIT $2 OFFSET $3
     `, [userId, limit, offset]);
     console.log("DEBUG getFriends rows:", rows.map(r => ({ id: r.user_id, lastMsg: r.lastMessage, lMsg: r.last_message, lsm: r.lastmessage })));
-      const formattedData = rows.map(row => ({
+    const formattedData = rows.map(row => ({
       ...row, avatar_url: row.avatar_url || 'https://hima-bucket.s3.amazonaws.com/default-avatar.png'
     }));
     res.status(200).json({ status: 'success', data: formattedData, meta: { page, limit } });
@@ -410,17 +411,7 @@ exports.blockUser = async (req, res) => {
     const userId = req.user.id;
     const { target_user_id } = req.body;
 
-    // Remove friendship
-    await pool.query(`
-      DELETE FROM friendships 
-      WHERE (user_one_id = $1 AND user_two_id = $2) OR (user_one_id = $2 AND user_two_id = $1)
-    `, [userId, target_user_id]);
-
-    // Delete requests
-    await pool.query(`
-      DELETE FROM friend_requests 
-      WHERE (sender_id = $1 AND receiver_id = $2) OR (sender_id = $2 AND receiver_id = $1)
-    `, [userId, target_user_id]);
+    // We no longer delete friendships or requests here so they can be restored upon unblock.
 
     // Add block
     await pool.query(`
@@ -485,7 +476,7 @@ exports.debugFriends = async (req, res) => {
       WHERE f.user_one_id = $2 OR f.user_two_id = $3
       LIMIT 10
     `, [userId, userId, userId]);
-    
+
     res.json({ status: 'success', raw_db_rows: rows });
   } catch (err) {
     res.json({ error: err.message });
