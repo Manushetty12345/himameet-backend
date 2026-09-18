@@ -137,18 +137,35 @@ exports.toggleStatus = async (req, res) => {
     const value = is_online ? true : false;
 
     if (call_type === 'voice') {
-      await pool.query(`
-        INSERT INTO creator_settings (user_id, is_voice_online, is_video_online)
-        VALUES ($1, $2, false)
-        ON CONFLICT (user_id) DO UPDATE SET is_voice_online = $2, updated_at = NOW()
-      `, [creatorId, value]);
+      const [updateRes] = await pool.query(
+        `UPDATE creator_settings SET is_voice_online = $2, updated_at = NOW() WHERE user_id = $1 RETURNING *`,
+        [creatorId, value]
+      );
+      if (updateRes.length === 0) {
+        await pool.query(
+          `INSERT INTO creator_settings (user_id, is_voice_online, is_video_online) VALUES ($1, $2, false)`,
+          [creatorId, value]
+        );
+      }
     } else {
-      await pool.query(`
-        INSERT INTO creator_settings (user_id, is_voice_online, is_video_online)
-        VALUES ($1, false, $2)
-        ON CONFLICT (user_id) DO UPDATE SET is_video_online = $2, updated_at = NOW()
-      `, [creatorId, value]);
+      const [updateRes] = await pool.query(
+        `UPDATE creator_settings SET is_video_online = $2, updated_at = NOW() WHERE user_id = $1 RETURNING *`,
+        [creatorId, value]
+      );
+      if (updateRes.length === 0) {
+        await pool.query(
+          `INSERT INTO creator_settings (user_id, is_voice_online, is_video_online) VALUES ($1, false, $2)`,
+          [creatorId, value]
+        );
+      }
     }
+    
+    // Also update users.is_online for global online status used by feed & matching
+    await pool.query(`
+      UPDATE users 
+      SET is_online = (SELECT (is_voice_online OR is_video_online) FROM creator_settings WHERE user_id = $1)
+      WHERE id = $1
+    `, [creatorId]);
 
     console.log(`[toggleStatus] SUCCESS: ${call_type} => ${value}`);
 
