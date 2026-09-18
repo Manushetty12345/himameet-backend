@@ -131,7 +131,9 @@ exports.randomMatch = async (req, res) => {
       data: {
         matched_creator_id: rows[0].matched_creator_id,
         name: rows[0].name,
-        avatarUri: rows[0].avatar_url || 'https://hima-bucket.s3.amazonaws.com/default-female.png'
+        avatarUri: rows[0].avatar_url || 'https://hima-bucket.s3.amazonaws.com/default-female.png',
+        call_rate: rows[0].call_rate,
+        video_rate: rows[0].video_rate
       }
     });
   } catch (error) {
