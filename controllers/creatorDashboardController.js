@@ -369,6 +369,7 @@ exports.getBankDetails = async (req, res) => {
  * 11.9 Submit Withdrawal Request
  */
 exports.submitWithdrawal = async (req, res) => {
+  let client;
   try {
     const creatorId = req.user.id;
     const { amount_inr } = req.body;
@@ -390,20 +391,32 @@ exports.submitWithdrawal = async (req, res) => {
       return res.status(400).json({ status: 'error', message: 'Please add bank details before withdrawing.' });
     }
 
-    const [updateRes] = await pool.query(`UPDATE wallets SET coin_balance = coin_balance - $1 WHERE user_id = $2 AND coin_balance >= $3 RETURNING id`, [requiredCoins, creatorId, requiredCoins]);
+    client = await pool.getConnection();
+    await client.beginTransaction();
+
+    const [updateRes] = await client.query(`UPDATE wallets SET coin_balance = coin_balance - $1 WHERE user_id = $2 AND coin_balance >= $3 RETURNING id`, [requiredCoins, creatorId, requiredCoins]);
     
     if (updateRes.length === 0) {
+      await client.rollback();
+      client.release();
       return res.status(400).json({ status: 'error', message: 'Insufficient coin balance.' });
     }
 
-    await pool.query(`INSERT INTO coin_transactions (user_id, type, coins) VALUES ($1, 'withdrawal', $2)`, [creatorId, -requiredCoins]);
-    await pool.query(`
+    await client.query(`INSERT INTO coin_transactions (user_id, type, coins) VALUES ($1, 'withdrawal', $2)`, [creatorId, -requiredCoins]);
+    await client.query(`
       INSERT INTO withdrawal_requests (user_id, amount_inr, status, coins_deducted, conversion_rate_used)
       VALUES ($1, $2, 'pending', $3, $4)
     `, [creatorId, amount_inr, requiredCoins, coinsPerRupee]);
 
+    await client.commit();
+    client.release();
+
     res.status(200).json({ status: 'success', message: 'Withdrawal request submitted successfully.' });
   } catch (error) {
+    if (client) {
+      await client.rollback();
+      client.release();
+    }
     console.error('Error submitting withdrawal:', error);
     res.status(500).json({ status: 'error', message: 'Internal Server Error' });
   }

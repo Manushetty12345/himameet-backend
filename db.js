@@ -55,7 +55,9 @@ pool.connect()
           processed_at            TIMESTAMP
         )
       `);
-      console.log('✅ Migration: ensured withdrawal_requests table exists');
+      await client.query('ALTER TABLE withdrawal_requests ADD COLUMN IF NOT EXISTS coins_deducted BIGINT DEFAULT 0');
+      await client.query('ALTER TABLE withdrawal_requests ADD COLUMN IF NOT EXISTS conversion_rate_used NUMERIC(10,4) DEFAULT 0');
+      console.log('✅ Migration: ensured withdrawal_requests table and columns exist');
     } catch (e) {
       console.error('Error running migration:', e);
     }
