@@ -489,7 +489,7 @@ module.exports = (io) => {
         }
 
         // Update DB
-        await pool.query(`UPDATE call_logs SET status = 'completed', ended_at = NOW() WHERE id = $1 AND status != 'completed'`, [callId]);
+        await pool.query(`UPDATE call_logs SET status = 'completed', ended_at = NOW(), duration_seconds = COALESCE(EXTRACT(EPOCH FROM (NOW() - started_at)), duration_seconds) WHERE id = $1 AND status != 'completed'`, [callId]);
 
         io.to(`call_${callId}`).emit('call_ended', { message: 'The other user hung up.' });
       } catch (err) {
@@ -528,7 +528,7 @@ function startCallBillingTimer(callId, io) {
       if (!room || room.size === 0) {
         console.log(`[billTick] Room call_${callId} is empty. Abandoning ghost call.`);
         stopCallBillingTimer(callId);
-        await pool.query(`UPDATE call_logs SET status = 'completed', end_reason = 'abandoned', ended_at = NOW() WHERE id = $1 AND status != 'completed'`, [callId]);
+        await pool.query(`UPDATE call_logs SET status = 'completed', end_reason = 'abandoned', ended_at = NOW(), duration_seconds = COALESCE(EXTRACT(EPOCH FROM (NOW() - started_at)), duration_seconds) WHERE id = $1 AND status != 'completed'`, [callId]);
         return;
       }
 
@@ -559,7 +559,7 @@ function startCallBillingTimer(callId, io) {
 
         // Insufficient Coins! Force end call.
         stopCallBillingTimer(callId);
-        await pool.query(`UPDATE call_logs SET status = 'completed', end_reason = 'insufficient_coins', ended_at = NOW() WHERE id = $1`, [callId]);
+        await pool.query(`UPDATE call_logs SET status = 'completed', end_reason = 'insufficient_coins', ended_at = NOW(), duration_seconds = COALESCE(EXTRACT(EPOCH FROM (NOW() - started_at)), duration_seconds) WHERE id = $1`, [callId]);
         io.to(`call_${callId}`).emit('insufficient_coins', { message: 'Caller ran out of coins. Call ended.' });
         io.in(`call_${callId}`).socketsLeave(`call_${callId}`);
         return;

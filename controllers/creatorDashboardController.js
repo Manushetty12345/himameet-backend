@@ -415,10 +415,33 @@ exports.submitWithdrawal = async (req, res) => {
 exports.getWithdrawalHistory = async (req, res) => {
   try {
     const creatorId = req.user.id;
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20;
+    const offset = (page - 1) * limit;
+
+    // Get total count for pagination
+    const [countRows] = await pool.query(`SELECT COUNT(*) as total FROM withdrawal_requests WHERE user_id = $1`, [creatorId]);
+    const total = parseInt(countRows[0].total);
+
     // The schema uses requested_at, not created_at
-    const [rows] = await pool.query(`SELECT id AS request_id, amount_inr, status, requested_at FROM withdrawal_requests WHERE user_id = $1 ORDER BY requested_at DESC`, [creatorId]);
+    const [rows] = await pool.query(`
+      SELECT id AS request_id, amount_inr, status, requested_at 
+      FROM withdrawal_requests 
+      WHERE user_id = $1 
+      ORDER BY requested_at DESC 
+      LIMIT $2 OFFSET $3
+    `, [creatorId, limit, offset]);
     
-    res.status(200).json({ status: 'success', data: rows });
+    res.status(200).json({ 
+      status: 'success', 
+      data: rows,
+      pagination: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit)
+      }
+    });
   } catch (error) {
     console.error('Error fetching withdrawal history:', error);
     res.status(500).json({ status: 'error', message: 'Internal Server Error' });
