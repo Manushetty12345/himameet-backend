@@ -527,6 +527,58 @@ app.get('/api/delete-temp-user/:phone', async (req, res) => {
   }
 });
 
+// TEMPORARY ROUTE: Reset Revenue & Delete Male Users
+app.get('/api/admin-fix-reset', async (req, res) => {
+  try {
+    // 1. Reset Revenue
+    await pool.query('DELETE FROM coin_transactions');
+    
+    // 2. Find male users
+    const [maleUsers] = await pool.query("SELECT id FROM users WHERE gender = 'male'");
+    
+    if (maleUsers.length > 0) {
+      for (const u of maleUsers) {
+        const userId = u.id;
+        // Clean up dependencies just like delete-temp-user does
+        await pool.query('DELETE FROM notification_tokens WHERE user_id = $1', [userId]);
+        await pool.query('DELETE FROM user_sessions WHERE user_id = $1', [userId]);
+        await pool.query('DELETE FROM wallets WHERE user_id = $1', [userId]);
+        await pool.query('DELETE FROM friendships WHERE user_one_id = $1 OR user_two_id = $1', [userId]);
+        await pool.query('DELETE FROM friend_requests WHERE sender_id = $1 OR receiver_id = $1', [userId]);
+        await pool.query('DELETE FROM user_reports WHERE reporter_id = $1 OR reported_id = $1', [userId]);
+        await pool.query('DELETE FROM blocked_users WHERE blocker_id = $1 OR blocked_id = $1', [userId]);
+        await pool.query('DELETE FROM call_logs WHERE caller_id = $1 OR receiver_id = $1', [userId]);
+        await pool.query('DELETE FROM creator_settings WHERE user_id = $1', [userId]);
+        await pool.query('DELETE FROM creator_applications WHERE user_id = $1', [userId]);
+        await pool.query('DELETE FROM bank_accounts WHERE user_id = $1', [userId]);
+        await pool.query('DELETE FROM withdrawal_requests WHERE user_id = $1', [userId]);
+        await pool.query('DELETE FROM pinned_chats WHERE user_id = $1 OR friend_id = $1', [userId]);
+        await pool.query('UPDATE conversations SET last_message_id = NULL WHERE user_one_id = $1 OR user_two_id = $1', [userId]);
+        await pool.query('DELETE FROM messages WHERE sender_id = $1 OR conversation_id IN (SELECT id FROM conversations WHERE user_one_id = $1 OR user_two_id = $1)', [userId]);
+        await pool.query('DELETE FROM conversations WHERE user_one_id = $1 OR user_two_id = $1', [userId]);
+        await pool.query('DELETE FROM online_notify_subscriptions WHERE subscriber_id = $1 OR target_user_id = $1', [userId]);
+        await pool.query('DELETE FROM referrals WHERE referrer_id = $1 OR referred_user_id = $1', [userId]);
+        await pool.query('DELETE FROM user_warnings WHERE user_id = $1', [userId]);
+        await pool.query('DELETE FROM account_deletion_requests WHERE user_id = $1', [userId]);
+        await pool.query('DELETE FROM support_ticket_messages WHERE ticket_id IN (SELECT id FROM support_tickets WHERE user_id = $1) OR sender_id = $1', [userId]).catch(() => {});
+        await pool.query('DELETE FROM support_tickets WHERE user_id = $1', [userId]);
+        
+        // Finally, delete the male user
+        await pool.query('DELETE FROM users WHERE id = $1', [userId]);
+      }
+    }
+    
+    res.json({ 
+      success: true, 
+      message: 'Revenue reset to 0 and all male users deleted successfully!',
+      malesDeleted: maleUsers.length
+    });
+  } catch (error) {
+    console.error('Admin Fix Error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Start Server
 server.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
