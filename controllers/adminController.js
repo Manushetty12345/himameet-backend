@@ -19,6 +19,9 @@ exports.setupFirstAdmin = async (req, res) => {
       return res.status(400).json({ status: 'error', message: 'Phone number required' });
     }
 
+    // Strip any spaces from the phone number
+    const cleanPhone = phone_number.replace(/\s+/g, '');
+
     // Block if admin already exists
     const [existingAdmins] = await pool.query(`SELECT id FROM users WHERE is_admin = true`);
     if (existingAdmins.length > 0) {
@@ -27,10 +30,10 @@ exports.setupFirstAdmin = async (req, res) => {
 
     // Try multiple formats: as-entered, without +91, with +91
     const formats = [
-      phone_number,
-      phone_number.replace(/^\+91/, ''),        // strip +91 → 10 digits
-      phone_number.replace(/^91/, ''),           // strip 91 → 10 digits
-      '+91' + phone_number.replace(/^\+?91?/, '') // ensure +91 prefix
+      cleanPhone,
+      cleanPhone.replace(/^\+91/, ''),        // strip +91 → 10 digits
+      cleanPhone.replace(/^91/, ''),           // strip 91 → 10 digits
+      '+91' + cleanPhone.replace(/^\+?91?/, '') // ensure +91 prefix
     ];
 
     let updated = [];
