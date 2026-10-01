@@ -21,10 +21,12 @@ exports.setupFirstAdmin = async (req, res) => {
 
     // Strip any spaces from the phone number
     const cleanPhone = phone_number.replace(/\s+/g, '');
+    console.log(`[setupFirstAdmin] Raw Input: "${phone_number}", Cleaned: "${cleanPhone}"`);
 
     // Block if admin already exists
     const [existingAdmins] = await pool.query(`SELECT id FROM users WHERE is_admin = true`);
     if (existingAdmins.length > 0) {
+      console.log(`[setupFirstAdmin] Failed: Admin already exists`);
       return res.status(403).json({ status: 'error', message: 'Admin already exists. Cannot run setup again.' });
     }
 
@@ -35,17 +37,27 @@ exports.setupFirstAdmin = async (req, res) => {
       cleanPhone.replace(/^91/, ''),           // strip 91 → 10 digits
       '+91' + cleanPhone.replace(/^\+?91?/, '') // ensure +91 prefix
     ];
+    console.log(`[setupFirstAdmin] Formats to test:`, formats);
 
     let updated = [];
     for (const fmt of formats) {
+      console.log(`[setupFirstAdmin] Trying format: "${fmt}"`);
       const [rows] = await pool.query(
         `UPDATE users SET is_admin = true WHERE phone_number = $1 RETURNING id, full_name, phone_number`,
         [fmt]
       );
-      if (rows.length > 0) { updated = rows; break; }
+      if (rows.length > 0) { 
+        updated = rows; 
+        console.log(`[setupFirstAdmin] Match found for format: "${fmt}"`);
+        break; 
+      }
     }
 
     if (updated.length === 0) {
+      // Log some existing users to see what format they are saved in
+      const [allUsers] = await pool.query('SELECT id, phone_number, country_code FROM users LIMIT 10');
+      console.log(`[setupFirstAdmin] No match found. Top 10 users in DB:`, allUsers);
+
       return res.status(404).json({ status: 'error', message: 'Phone number not found. Make sure this number is registered in the app first.' });
     }
 
