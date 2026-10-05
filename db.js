@@ -76,6 +76,42 @@ pool.connect()
       console.error('❌ Error seeding avatars:', e.message);
     }
 
+    // ── Seed languages if table is empty ──────────────────────────────────────
+    try {
+      const { rows: langRows } = await client.query('SELECT COUNT(*) FROM languages');
+      if (parseInt(langRows[0].count) === 0) {
+        const languageSeeds = [
+          { en: 'Hindi',     native: 'हिन्दी',    code: 'hi', order: 1 },
+          { en: 'English',   native: 'English',    code: 'en', order: 2 },
+          { en: 'Telugu',    native: 'తెలుగు',    code: 'te', order: 3 },
+          { en: 'Tamil',     native: 'தமிழ்',     code: 'ta', order: 4 },
+          { en: 'Kannada',   native: 'ಕನ್ನಡ',     code: 'kn', order: 5 },
+          { en: 'Malayalam', native: 'മലയാളം',    code: 'ml', order: 6 },
+          { en: 'Marathi',   native: 'मराठी',     code: 'mr', order: 7 },
+          { en: 'Bengali',   native: 'বাংলা',     code: 'bn', order: 8 },
+          { en: 'Gujarati',  native: 'ગુજરાતી',   code: 'gu', order: 9 },
+          { en: 'Punjabi',   native: 'ਪੰਜਾਬੀ',    code: 'pa', order: 10 },
+          { en: 'Odia',      native: 'ଓଡ଼ିଆ',     code: 'or', order: 11 },
+          { en: 'Urdu',      native: 'اردو',       code: 'ur', order: 12 },
+          { en: 'Assamese',  native: 'অসমীয়া',   code: 'as', order: 13 },
+          { en: 'Maithili',  native: 'मैथिली',    code: 'mai', order: 14 },
+          { en: 'Bhojpuri',  native: 'भोजपुरी',   code: 'bho', order: 15 },
+        ];
+        for (const lang of languageSeeds) {
+          await client.query(
+            `INSERT INTO languages (name_english, name_native, language_code, is_active, display_order) VALUES ($1, $2, $3, true, $4)`,
+            [lang.en, lang.native, lang.code, lang.order]
+          );
+        }
+        console.log('✅ Seed: inserted 15 languages');
+      } else {
+        console.log('✅ Seed: languages already exist, skipping.');
+      }
+    } catch (e) {
+      console.error('❌ Error seeding languages:', e.message);
+    }
+
+
     
     try {
       await client.query('ALTER TABLE call_logs ADD COLUMN IF NOT EXISTS receiver_deleted BOOLEAN DEFAULT false');
