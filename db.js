@@ -110,6 +110,38 @@ pool.connect()
       console.error('❌ Error seeding languages:', e.message);
     }
 
+    // ── Seed tags / interests ─────────────────────────────────────────────────
+    try {
+      await client.query('ALTER TABLE tags ADD COLUMN IF NOT EXISTS display_order INT DEFAULT 0');
+      await client.query('ALTER TABLE tags ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT true');
+      await client.query("ALTER TABLE tags ADD COLUMN IF NOT EXISTS tag_type VARCHAR(20) DEFAULT 'interest'");
+
+      const interestSeeds = [
+        { name: 'Music',        order: 1 },
+        { name: 'Movies',       order: 2 },
+        { name: 'Foodie',       order: 3 },
+        { name: 'Travel',       order: 4 },
+        { name: 'Love',         order: 5 },
+        { name: 'Politics',     order: 6 },
+        { name: 'Art',          order: 7 },
+        { name: 'Sports',       order: 8 },
+        { name: 'Photography',  order: 9 },
+        { name: 'Cooking',      order: 10 },
+      ];
+
+      for (const item of interestSeeds) {
+        await client.query(
+          `INSERT INTO tags (name, tag_type, is_active, display_order)
+           VALUES ($1, 'interest', true, $2)
+           ON CONFLICT (name) DO UPDATE SET tag_type = 'interest', is_active = true, display_order = $2`,
+          [item.name, item.order]
+        );
+      }
+      console.log('✅ Seed: ensured 10 interests in tags table');
+    } catch (e) {
+      console.error('❌ Error seeding tags/interests:', e.message);
+    }
+
 
     
     try {

@@ -5,7 +5,7 @@ const pool = require('../db');
  */
 exports.getInterests = async (req, res) => {
   try {
-    const [rows] = await pool.query(`SELECT id, name FROM tags WHERE tag_type = 'interest' AND is_active = true`);
+    const [rows] = await pool.query(`SELECT id, name FROM tags WHERE tag_type = 'interest' AND is_active = true ORDER BY display_order ASC`);
     
     res.status(200).json({
       status: 'success',
