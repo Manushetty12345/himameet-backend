@@ -43,17 +43,17 @@ pool.connect()
         const baseUrl = (process.env.APP_BASE_URL || 'https://himameet-backend.onrender.com').replace(/\/$/, '');
         const avatarSeeds = [
           // Male avatars
-          { url: `${baseUrl}/avatars/male_1.png`,   gender: 'male',   order: 1 },
-          { url: `${baseUrl}/avatars/male_2.png`,   gender: 'male',   order: 2 },
-          { url: `${baseUrl}/avatars/male_3.png`,   gender: 'male',   order: 3 },
-          { url: `${baseUrl}/avatars/male_4.png`,   gender: 'male',   order: 4 },
-          { url: `${baseUrl}/avatars/male_5.png`,   gender: 'male',   order: 5 },
+          { url: `${baseUrl}/public/avatars/male_1.png`,   gender: 'male',   order: 1 },
+          { url: `${baseUrl}/public/avatars/male_2.png`,   gender: 'male',   order: 2 },
+          { url: `${baseUrl}/public/avatars/male_3.png`,   gender: 'male',   order: 3 },
+          { url: `${baseUrl}/public/avatars/male_4.png`,   gender: 'male',   order: 4 },
+          { url: `${baseUrl}/public/avatars/male_5.png`,   gender: 'male',   order: 5 },
           // Female avatars
-          { url: `${baseUrl}/avatars/female_1.png`, gender: 'female', order: 1 },
-          { url: `${baseUrl}/avatars/female_2.png`, gender: 'female', order: 2 },
-          { url: `${baseUrl}/avatars/female_3.png`, gender: 'female', order: 3 },
-          { url: `${baseUrl}/avatars/female_4.png`, gender: 'female', order: 4 },
-          { url: `${baseUrl}/avatars/female_5.png`, gender: 'female', order: 5 },
+          { url: `${baseUrl}/public/avatars/female_1.png`, gender: 'female', order: 1 },
+          { url: `${baseUrl}/public/avatars/female_2.png`, gender: 'female', order: 2 },
+          { url: `${baseUrl}/public/avatars/female_3.png`, gender: 'female', order: 3 },
+          { url: `${baseUrl}/public/avatars/female_4.png`, gender: 'female', order: 4 },
+          { url: `${baseUrl}/public/avatars/female_5.png`, gender: 'female', order: 5 },
         ];
         for (const av of avatarSeeds) {
           await client.query(
@@ -63,7 +63,14 @@ pool.connect()
         }
         console.log('✅ Seed: inserted 10 avatars (5 male + 5 female)');
       } else {
-        console.log('✅ Seed: avatars already exist, skipping.');
+        // Fix avatar URLs that may have been inserted without /public prefix
+        const baseUrl = (process.env.APP_BASE_URL || 'https://himameet-backend.onrender.com').replace(/\/$/, '');
+        await client.query(`
+          UPDATE avatars 
+          SET avatar_url = REPLACE(avatar_url, $1 || '/avatars/', $1 || '/public/avatars/')
+          WHERE avatar_url LIKE $1 || '/avatars/%'
+        `, [baseUrl]);
+        console.log('✅ Seed: avatars already exist, ensuring URLs are correct.');
       }
     } catch (e) {
       console.error('❌ Error seeding avatars:', e.message);
