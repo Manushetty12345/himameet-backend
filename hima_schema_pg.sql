@@ -202,7 +202,10 @@ CREATE TABLE creator_settings (
     voice_rate_per_min      NUMERIC(6,2) DEFAULT 10.00,
     video_rate_per_min      NUMERIC(6,2) DEFAULT 20.00,
     chat_rate_per_msg       NUMERIC(6,2) DEFAULT 0,
-    is_available             BOOLEAN DEFAULT TRUE
+    is_available             BOOLEAN DEFAULT TRUE,
+    is_voice_online         BOOLEAN DEFAULT FALSE,
+    is_video_online         BOOLEAN DEFAULT FALSE,
+    updated_at              TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 

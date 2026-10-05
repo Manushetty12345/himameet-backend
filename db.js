@@ -145,6 +145,12 @@ pool.connect()
 
     
     try {
+      // Creator settings columns for Home feed & status
+      await client.query('ALTER TABLE creator_settings ADD COLUMN IF NOT EXISTS is_voice_online BOOLEAN DEFAULT false');
+      await client.query('ALTER TABLE creator_settings ADD COLUMN IF NOT EXISTS is_video_online BOOLEAN DEFAULT false');
+      await client.query('ALTER TABLE creator_settings ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW()');
+      console.log('✅ Migration: ensured creator_settings columns exist');
+
       await client.query('ALTER TABLE call_logs ADD COLUMN IF NOT EXISTS receiver_deleted BOOLEAN DEFAULT false');
 
         await client.query(`
@@ -160,11 +166,14 @@ pool.connect()
   
       console.log('✅ Migration: ensured receiver_deleted column exists');
 
-      // Admin columns
+      // Admin & profile columns
       await client.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS is_admin BOOLEAN DEFAULT false');
       await client.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS dnd_until TIMESTAMP WITH TIME ZONE');
       await client.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS admin_password VARCHAR(100)');
-      console.log('✅ Migration: ensured admin columns exist');
+      await client.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS fcm_token TEXT');
+      await client.query('ALTER TABLE creator_applications ADD COLUMN IF NOT EXISTS voice_sample_url TEXT');
+      await client.query('ALTER TABLE creator_applications ADD COLUMN IF NOT EXISTS ai_gender_score NUMERIC(5,2)');
+      console.log('✅ Migration: ensured admin and profile columns exist');
       
       await client.query('ALTER TABLE bank_accounts ADD COLUMN IF NOT EXISTS bank_name VARCHAR(100), ADD COLUMN IF NOT EXISTS pan_number VARCHAR(50), ADD COLUMN IF NOT EXISTS upi_id VARCHAR(100), ADD COLUMN IF NOT EXISTS passbook_photo_url TEXT, ADD COLUMN IF NOT EXISTS pan_photo_url TEXT, ADD COLUMN IF NOT EXISTS phone_number VARCHAR(20)');
       console.log('✅ Migration: ensured extended bank_accounts columns exist');
