@@ -76,11 +76,14 @@ exports.sendAdminOtp = async (req, res) => {
     const { phone_number } = req.body;
     if (!phone_number) return res.status(400).json({ status: 'error', message: 'Phone number required' });
 
+    const clean10 = String(phone_number).replace(/\D/g, '').slice(-10);
+
     // Try multiple phone number formats
     const formats = [
       phone_number,
-      phone_number.replace(/^\+91/, ''),
-      '+91' + phone_number.replace(/^\+?91?/, '')
+      clean10,
+      '+91' + clean10,
+      '91' + clean10
     ];
 
     let admin = null;
@@ -94,8 +97,7 @@ exports.sendAdminOtp = async (req, res) => {
     }
 
     // Strip country code for bhashsms (expects 10-digit mobile)
-    const mobile = phone_number.replace(/^\+91/, '').replace(/^91/, '').slice(-10);
-    await bhashsms.sendOTP(mobile, '91');
+    await bhashsms.sendOTP(clean10, '91');
 
     res.json({ status: 'success', message: 'OTP sent to your number' });
   } catch (err) {
@@ -111,20 +113,35 @@ exports.verifyAdminOtp = async (req, res) => {
     const { phone_number, otp } = req.body;
     if (!phone_number || !otp) return res.status(400).json({ status: 'error', message: 'Phone and OTP required' });
 
+    const clean10 = String(phone_number).replace(/\D/g, '').slice(-10);
+
     // Verify OTP
-    const mobile = phone_number.replace(/^\+91/, '');
-    const result = bhashsms.verifyOTP(mobile, '91', otp);
+    const result = bhashsms.verifyOTP(clean10, '91', otp);
     if (result.type !== 'success') {
       return res.status(400).json({ status: 'error', message: result.message || 'Invalid OTP' });
     }
 
-    // Get admin user
-    const [rows] = await pool.query(`SELECT * FROM users WHERE phone_number = $1 AND is_admin = true`, [phone_number]);
-    if (rows.length === 0) {
+    // Get admin user with flexible formats
+    const formats = [
+      phone_number,
+      clean10,
+      '+91' + clean10,
+      '91' + clean10
+    ];
+
+    let admin = null;
+    for (const fmt of formats) {
+      const [rows] = await pool.query(`SELECT * FROM users WHERE phone_number = $1 AND is_admin = true`, [fmt]);
+      if (rows.length > 0) {
+        admin = rows[0];
+        break;
+      }
+    }
+
+    if (!admin) {
       return res.status(403).json({ status: 'error', message: 'Not an admin account' });
     }
 
-    const admin = rows[0];
     const token = jwt.sign({ id: admin.id, is_admin: true }, process.env.JWT_SECRET, { expiresIn: '7d' });
 
     res.json({
