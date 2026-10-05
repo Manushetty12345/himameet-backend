@@ -173,10 +173,31 @@ pool.connect()
       await client.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS fcm_token TEXT');
       await client.query('ALTER TABLE creator_applications ADD COLUMN IF NOT EXISTS voice_sample_url TEXT');
       await client.query('ALTER TABLE creator_applications ADD COLUMN IF NOT EXISTS ai_gender_score NUMERIC(5,2)');
-      console.log('✅ Migration: ensured admin and profile columns exist');
-      
       await client.query('ALTER TABLE bank_accounts ADD COLUMN IF NOT EXISTS bank_name VARCHAR(100), ADD COLUMN IF NOT EXISTS pan_number VARCHAR(50), ADD COLUMN IF NOT EXISTS upi_id VARCHAR(100), ADD COLUMN IF NOT EXISTS passbook_photo_url TEXT, ADD COLUMN IF NOT EXISTS pan_photo_url TEXT, ADD COLUMN IF NOT EXISTS phone_number VARCHAR(20)');
       console.log('✅ Migration: ensured extended bank_accounts columns exist');
+
+      // Sync rejected creator applications so they don't appear in mobile feed or active counts
+      await client.query(`
+        UPDATE users 
+        SET user_role = 'user', is_verified = false, is_online = false 
+        WHERE id IN (
+          SELECT user_id FROM creator_applications WHERE status = 'rejected'
+        )
+      `);
+      await client.query(`
+        DELETE FROM creator_settings 
+        WHERE user_id IN (
+          SELECT user_id FROM creator_applications WHERE status = 'rejected'
+        )
+      `);
+      await client.query(`
+        UPDATE users 
+        SET is_verified = false 
+        WHERE id IN (
+          SELECT user_id FROM creator_applications WHERE status = 'pending_review'
+        )
+      `);
+      console.log('✅ Migration: synced rejected/pending creator states');
 
       await client.query(`
         CREATE TABLE IF NOT EXISTS withdrawal_requests (

@@ -158,10 +158,10 @@ exports.verifyAdminOtp = async (req, res) => {
 // ─── Dashboard Overview ────────────────────────────────────────────────────────
 exports.getOverview = async (req, res) => {
   try {
-    const [[totalUsers]] = await pool.query(`SELECT COUNT(*) as count FROM users WHERE is_admin = false OR is_admin IS NULL`);
-    const [[totalCreators]] = await pool.query(`SELECT COUNT(*) as count FROM users WHERE user_role = 'creator'`);
+    const [[totalUsers]] = await pool.query(`SELECT COUNT(*) as count FROM users WHERE (is_admin = false OR is_admin IS NULL) AND (user_role != 'creator' OR is_verified = false)`);
+    const [[totalCreators]] = await pool.query(`SELECT COUNT(*) as count FROM users WHERE user_role = 'creator' AND is_verified = true`);
     const [[maleCount]] = await pool.query(`SELECT COUNT(*) as count FROM users WHERE gender = 'male'`);
-    const [[femaleCount]] = await pool.query(`SELECT COUNT(*) as count FROM users WHERE gender = 'female'`);
+    const [[femaleCount]] = await pool.query(`SELECT COUNT(*) as count FROM users WHERE gender = 'female' AND user_role = 'creator' AND is_verified = true`);
     const [[pendingApplications]] = await pool.query(`SELECT COUNT(*) as count FROM creator_applications WHERE status = 'pending_review'`);
     const [[pendingWithdrawals]] = await pool.query(`SELECT COUNT(*) as count FROM withdrawal_requests WHERE status = 'pending'`);
     const [[openTickets]] = await pool.query(`SELECT COUNT(*) as count FROM support_tickets WHERE status = 'active'`);
@@ -357,7 +357,11 @@ exports.reviewApplication = async (req, res) => {
           VALUES ($1, $2, $3)
           ON CONFLICT (user_id) DO NOTHING
         `, [app.user_id, voiceRate, videoRate]);
-      }
+    } else if (action === 'rejected') {
+        // Demote user role, revoke verification, set offline, and delete creator settings
+        await pool.query(`UPDATE users SET user_role = 'user', is_verified = false, is_online = false WHERE id = $1`, [app.user_id]);
+        await pool.query(`DELETE FROM creator_settings WHERE user_id = $1`, [app.user_id]);
+    }
 
     res.json({ status: 'success', message: `Application ${action}` });
   } catch (err) {

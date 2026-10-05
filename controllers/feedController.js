@@ -16,10 +16,11 @@ exports.getCreators = async (req, res) => {
     const queryParams = [userId];
     let paramIndex = 2;
 
-    // Base WHERE: only show creators
+    // Base WHERE: only show creators who have been approved and verified by admin
     // Language filter is soft: if male user or creator has no language set, still show them
     let whereClauses = [
       `u.user_role = 'creator'`,
+      `u.is_verified = true`,
       `(
         u.language_id = (SELECT language_id FROM users WHERE id = $1)
         OR (SELECT language_id FROM users WHERE id = $1) IS NULL
@@ -113,6 +114,7 @@ exports.randomMatch = async (req, res) => {
       LEFT JOIN creator_settings cs ON u.id = cs.user_id
       LEFT JOIN avatars a ON u.avatar_id = a.id
       WHERE u.user_role = 'creator' 
+        AND u.is_verified = true
         AND u.is_online = true 
         AND (cs.is_available = true OR cs.is_available IS NULL)
       ORDER BY RANDOM()
