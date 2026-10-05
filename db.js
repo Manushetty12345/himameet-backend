@@ -35,6 +35,40 @@ pool.connect()
     } catch (err) {
       console.error('❌ Error checking/initializing schema:', err.message);
     }
+
+    // ── Seed avatars if table is empty ────────────────────────────────────────
+    try {
+      const { rows: avatarRows } = await client.query('SELECT COUNT(*) FROM avatars');
+      if (parseInt(avatarRows[0].count) === 0) {
+        const baseUrl = (process.env.APP_BASE_URL || 'https://himameet-backend.onrender.com').replace(/\/$/, '');
+        const avatarSeeds = [
+          // Male avatars
+          { url: `${baseUrl}/avatars/male_1.png`,   gender: 'male',   order: 1 },
+          { url: `${baseUrl}/avatars/male_2.png`,   gender: 'male',   order: 2 },
+          { url: `${baseUrl}/avatars/male_3.png`,   gender: 'male',   order: 3 },
+          { url: `${baseUrl}/avatars/male_4.png`,   gender: 'male',   order: 4 },
+          { url: `${baseUrl}/avatars/male_5.png`,   gender: 'male',   order: 5 },
+          // Female avatars
+          { url: `${baseUrl}/avatars/female_1.png`, gender: 'female', order: 1 },
+          { url: `${baseUrl}/avatars/female_2.png`, gender: 'female', order: 2 },
+          { url: `${baseUrl}/avatars/female_3.png`, gender: 'female', order: 3 },
+          { url: `${baseUrl}/avatars/female_4.png`, gender: 'female', order: 4 },
+          { url: `${baseUrl}/avatars/female_5.png`, gender: 'female', order: 5 },
+        ];
+        for (const av of avatarSeeds) {
+          await client.query(
+            `INSERT INTO avatars (avatar_url, gender, is_active, display_order) VALUES ($1, $2, true, $3)`,
+            [av.url, av.gender, av.order]
+          );
+        }
+        console.log('✅ Seed: inserted 10 avatars (5 male + 5 female)');
+      } else {
+        console.log('✅ Seed: avatars already exist, skipping.');
+      }
+    } catch (e) {
+      console.error('❌ Error seeding avatars:', e.message);
+    }
+
     
     try {
       await client.query('ALTER TABLE call_logs ADD COLUMN IF NOT EXISTS receiver_deleted BOOLEAN DEFAULT false');
