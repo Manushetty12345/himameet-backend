@@ -92,10 +92,7 @@ pool.connect()
           { en: 'Gujarati',  native: 'ગુજરાતી',   code: 'gu', order: 9 },
           { en: 'Punjabi',   native: 'ਪੰਜਾਬੀ',    code: 'pa', order: 10 },
           { en: 'Odia',      native: 'ଓଡ଼ିଆ',     code: 'or', order: 11 },
-          { en: 'Urdu',      native: 'اردو',       code: 'ur', order: 12 },
-          { en: 'Assamese',  native: 'অসমীয়া',   code: 'as', order: 13 },
-          { en: 'Maithili',  native: 'मैथिली',    code: 'mai', order: 14 },
-          { en: 'Bhojpuri',  native: 'भोजपुरी',   code: 'bho', order: 15 },
+          { en: 'Assamese',  native: 'অসমীয়া',   code: 'as', order: 12 },
         ];
         for (const lang of languageSeeds) {
           await client.query(
@@ -103,9 +100,11 @@ pool.connect()
             [lang.en, lang.native, lang.code, lang.order]
           );
         }
-        console.log('✅ Seed: inserted 15 languages');
+        console.log('✅ Seed: inserted 12 languages');
       } else {
-        console.log('✅ Seed: languages already exist, skipping.');
+        // Remove any unwanted languages that may have been inserted before
+        await client.query(`DELETE FROM languages WHERE language_code IN ('ur', 'mai', 'bho')`);
+        console.log('✅ Seed: languages already exist, removed unwanted ones if any.');
       }
     } catch (e) {
       console.error('❌ Error seeding languages:', e.message);
