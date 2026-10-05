@@ -20,6 +20,23 @@ pool.connect()
     console.log('DEBUG SSL option used:', (connectionString && connectionString.includes('.render.com')) ? 'rejectUnauthorized: false' : 'false');
     
     try {
+      // Auto-initialize schema if it doesn't exist
+      const res = await client.query("SELECT to_regclass('public.users');");
+      if (!res.rows[0].to_regclass) {
+        console.log('⚠️ Users table not found. Running database initialization script...');
+        const fs = require('fs');
+        const path = require('path');
+        const sql = fs.readFileSync(path.join(__dirname, 'hima_schema_pg.sql'), 'utf8');
+        await client.query(sql);
+        console.log('✅ Database schema initialized successfully!');
+      } else {
+        console.log('✅ Database schema is already initialized.');
+      }
+    } catch (err) {
+      console.error('❌ Error checking/initializing schema:', err.message);
+    }
+    
+    try {
       await client.query('ALTER TABLE call_logs ADD COLUMN IF NOT EXISTS receiver_deleted BOOLEAN DEFAULT false');
 
         await client.query(`
@@ -58,23 +75,6 @@ pool.connect()
       await client.query('ALTER TABLE withdrawal_requests ADD COLUMN IF NOT EXISTS coins_deducted BIGINT DEFAULT 0');
       await client.query('ALTER TABLE withdrawal_requests ADD COLUMN IF NOT EXISTS conversion_rate_used NUMERIC(10,4) DEFAULT 0');
       console.log('✅ Migration: ensured withdrawal_requests table and columns exist');
-    } catch (e) {
-      console.error('Error running migration:', e);
-    }
-    
-    try {
-      // Auto-initialize schema if it doesn't exist
-      const res = await client.query("SELECT to_regclass('public.users');");
-      if (!res.rows[0].to_regclass) {
-        console.log('⚠️ Users table not found. Running database initialization script...');
-        const fs = require('fs');
-        const path = require('path');
-        const sql = fs.readFileSync(path.join(__dirname, 'hima_schema_pg.sql'), 'utf8');
-        await client.query(sql);
-        console.log('✅ Database schema initialized successfully!');
-      } else {
-        console.log('✅ Database schema is already initialized.');
-      }
       
       // Temporary fix: update existing 8/15 rates to 10/20
       try {
@@ -86,8 +86,8 @@ pool.connect()
       } catch (e) {
         // ignore if table doesn't exist yet
       }
-    } catch (err) {
-      console.error('❌ Error checking/initializing schema:', err.message);
+    } catch (e) {
+      console.error('Error running migration:', e);
     } finally {
       client.release();
     }
