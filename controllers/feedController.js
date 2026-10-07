@@ -78,15 +78,15 @@ exports.getCreators = async (req, res) => {
       creator_id: row.creator_id,
       name: row.name,
       avatar_url: row.avatar_url || 'https://hima-bucket.s3.amazonaws.com/default-female.png',
-      is_online: row.is_voice_online === true || row.is_video_online === true,
+      is_online: Boolean(row.is_online) && (row.is_voice_online === true || row.is_video_online === true),
       is_new: row.is_new === true,
       voice: {
         rate_per_min: row.voice_rate ? parseFloat(row.voice_rate) : 10,
-        status: row.is_voice_online === true ? 'available' : 'offline'
+        status: (Boolean(row.is_online) && row.is_voice_online === true) ? 'available' : 'offline'
       },
       video: {
         rate_per_min: row.video_rate ? parseFloat(row.video_rate) : 20,
-        status: row.is_video_online === true ? 'available' : 'offline'
+        status: (Boolean(row.is_online) && row.is_video_online === true) ? 'available' : 'offline'
       }
     }));
 
