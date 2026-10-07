@@ -169,7 +169,7 @@ exports.saveProfileSetup = async (req, res) => {
 exports.getVoiceSentence = async (req, res) => {
   try {
     // In the future, this could be fetched from a database table 'settings' for multi-language support.
-    res.json({ success: true, data: 'Hello! I am excited to join Himameet and meet new people.' });
+    res.json({ success: true, data: 'Hello! I am excited to join Soulmates and meet new people.' });
   } catch (error) {
     console.error(error);
     res.status(500).json({ success: false, error: 'Server Error' });

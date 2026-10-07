@@ -147,7 +147,7 @@ exports.getReferralStats = async (req, res) => {
         total_invites,
         coins_per_invite,
         total_coins_earned,
-        share_message: `Join Himameet App and make real friends! ❤️\nUse my code ${invite_code} to sign up.\n\nDownload now: https://play.google.com/store/apps/details?id=com.gmwapp.hima`
+        share_message: `Join Soulmates App and make real friends! ❤️\nUse my code ${invite_code} to sign up.\n\nDownload now: https://play.google.com/store/apps/details?id=com.gmwapp.hima`
       }
     });
   } catch (error) {
